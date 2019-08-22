@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "571093761215",
+    "firebase_url": "https://dailyword-d5729.firebaseio.com",
+    "project_id": "dailyword-d5729",
+    "storage_bucket": "dailyword-d5729.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:571093761215:android:1dff3c797e00e778",
+        "android_client_info": {
+          "package_name": "com.fxstempfel.daily_word"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "571093761215-vejhd9vm3ahp2d6vbl03d0vv79hstb6e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAHAu27-teSBsl8dTKrhRp-nfaGpnuLKVk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "571093761215-vejhd9vm3ahp2d6vbl03d0vv79hstb6e.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
