@@ -1,3 +1,5 @@
+import 'dart:core';
+
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -8,10 +10,16 @@ import 'utils.dart';
 final styleName = TextStyle(
     fontWeight: FontWeight.bold, fontSize: 30.0, fontFamily: 'Roboto');
 final styleType = TextStyle(fontStyle: FontStyle.italic, fontSize: 16.0);
-final styleDefinition = TextStyle(fontSize: 16.0);
-final styleDefinitionLead = TextStyle(fontSize: 16.0, color: Colors.grey[700]);
+final styleDefinition = TextStyle(fontSize: 16.0, color: Colors.black, fontStyle: FontStyle.normal);
+final styleDefinitionNumber =
+    TextStyle(fontSize: 16.0, color: Colors.grey[700], fontStyle: FontStyle.normal);
+final styleDefinitionPrecision = TextStyle(
+    fontSize: 16.0, color: Colors.grey[700], fontStyle: FontStyle.italic);
 final styleExample = TextStyle(
     fontStyle: FontStyle.italic, fontSize: 16.0, color: Colors.grey[700]);
+final styleExampleAuthors =
+    TextStyle(fontFamily: 'CarroisGothic', fontSize: 12.0, fontStyle: FontStyle.normal);
+final styleExampleWork = TextStyle(fontStyle: FontStyle.italic, fontSize: 12.0);
 
 final firebaseCollectionName = 'dictionary';
 
@@ -23,6 +31,7 @@ class WordInfoPage extends StatefulWidget {
 }
 
 // TODO page style => background, font etc
+// TODO add wiki/larousse link
 class WordInfoPageState extends State<WordInfoPage> {
   WordInfo wordInfo;
   String wordName;
@@ -56,37 +65,37 @@ class WordInfoPageState extends State<WordInfoPage> {
   Widget _buildBody(String wordName) => Hero(
       tag: wordName,
       child: Container(
-              constraints: BoxConstraints.expand(),
+          constraints: BoxConstraints.expand(),
 
-              // TODO display word name while retrieving info
-              child: (wordInfo == null)
-                  ? FutureBuilder(
-                      future: _getWordInfo(wordName),
-                      builder: (context, snapshot) {
-                        switch (snapshot.connectionState) {
-                          case ConnectionState.active:
-                            return _showProgressIndicator();
-                          case ConnectionState.waiting:
-                            return _showProgressIndicator();
-                          case ConnectionState.none:
-                            return Center(child: Text('ERROR: cannot connect'));
-                          case ConnectionState.done:
-                            if (snapshot.hasError) {
-                              return Center(
-                                child: Text(
-                                    'ERROR: could not get data from server\n${snapshot.error}'),
-                              );
-                            } else {
-                              wordInfo = snapshot.data;
-                              return _buildWordInfo();
-                            }
-                            break;
-                          default:
-                            return null;
+          // TODO display word name while retrieving info
+          child: (wordInfo == null)
+              ? FutureBuilder(
+                  future: _getWordInfo(wordName),
+                  builder: (context, snapshot) {
+                    switch (snapshot.connectionState) {
+                      case ConnectionState.active:
+                        return _showProgressIndicator();
+                      case ConnectionState.waiting:
+                        return _showProgressIndicator();
+                      case ConnectionState.none:
+                        return Center(child: Text('ERROR: cannot connect'));
+                      case ConnectionState.done:
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text(
+                                'ERROR: could not get data from server\n${snapshot.error}'),
+                          );
+                        } else {
+                          wordInfo = snapshot.data;
+                          return _buildWordInfo();
                         }
-                      },
-                    )
-                  : _buildWordInfo()));
+                        break;
+                      default:
+                        return null;
+                    }
+                  },
+                )
+              : _buildWordInfo()));
 
   Widget _showProgressIndicator() => Row(children: [
         Expanded(
@@ -111,6 +120,7 @@ class WordInfoPageState extends State<WordInfoPage> {
               child: AutoSizeText(
                 wordInfo.name,
                 style: styleName,
+                maxLines: 1,
               ),
             ),
             trailing: Container(
@@ -194,27 +204,58 @@ class WordInfo {
   String type;
   List<Definition> definitions;
   String conjugationLink;
+  String link;
 
-  WordInfo(this.name, this.type, this.definitions, this.conjugationLink);
+  WordInfo(
+      this.name, this.type, this.definitions, this.conjugationLink, this.link);
 
   WordInfo.fromMap(Map<String, dynamic> wordMap) {
     name = wordMap['name'];
     type = wordMap['type'];
     conjugationLink = wordMap['conjugation_link'];
     definitions = wordMap['definitions']
-        .map((defMap) => Definition(defMap['meaning'], defMap['example']))
+        .map((defMap) => Definition.fromMap(defMap))
         .toList()
         .cast<Definition>();
+    link = wordMap['link'];
   }
 }
 
 class Definition {
   String meaning;
-  String example;
+  List<Example> examples;
+  List<String> precisions;
 
-  Definition(this.meaning, this.example);
+  Definition(this.meaning, this.examples, this.precisions);
 
-  String toString() => '${this.meaning}\nExample: ${this.example}';
+  Definition.fromMap(Map<dynamic, dynamic> argMap) {
+    this.meaning = argMap['meaning'];
+    this.examples = (argMap['examples'] == null)
+        ? null
+        : argMap['examples']
+            .map((exampleMap) => Example.fromMap(exampleMap))
+            .toList()
+            .cast<Example>();
+    this.precisions = (argMap['precisions'] == null)
+        ? null
+        : argMap['precisions'].cast<String>();
+  }
+
+  String toString() => '${this.meaning}\nExamples: ${this.examples}';
+}
+
+class Example {
+  String text;
+  String author;
+  String work;
+
+  Example(this.text, this.author, this.work);
+
+  Example.fromMap(Map<dynamic, dynamic> map) {
+    this.text = map['text'];
+    this.author = map['author'];
+    this.work = map['work'];
+  }
 }
 
 class DefinitionItem extends StatefulWidget {
@@ -237,8 +278,6 @@ class DefinitionItemState extends State<DefinitionItem> {
         setState(() {
           unrolled = !unrolled;
         });
-        print(
-            'example ${widget.definition.example.length} = ${widget.definition.example}');
       },
       child: Container(
         child: Row(
@@ -250,7 +289,7 @@ class DefinitionItemState extends State<DefinitionItem> {
                 alignment: Alignment.topRight,
                 child: Text(
                   '${widget.index + 1}. ',
-                  style: styleDefinitionLead,
+                  style: styleDefinitionNumber,
                 ),
               ),
             ),
@@ -261,18 +300,49 @@ class DefinitionItemState extends State<DefinitionItem> {
         padding: EdgeInsets.only(bottom: 8.0),
       ));
 
-  Widget _buildDefinitionAndExample(Definition definition) => AnimatedContainer(
-      duration: Duration(seconds: 1),
-      alignment: Alignment.topLeft,
-      child: (definition.example == null || !unrolled)
-          ? Text(
-              definition.meaning,
-              style: styleDefinition,
-            )
-          : AutoSizeText.rich(TextSpan(
-              text: definition.meaning,
-              style: styleDefinition,
-              children: <InlineSpan>[
-                  TextSpan(text: '\n${definition.example}', style: styleExample)
-                ])));
+  // TODO whitespaces after description + down arrow as a trailing button + up arrow
+  Widget _buildDefinitionAndExample(Definition definition) {
+    var textSpans = <TextSpan>[];
+    // 1. add precisions surrounded with parenthesis
+    if (definition.precisions != null) {
+      var textPrecisions =
+          definition.precisions.map((precision) => '($precision)').join(' ') +
+              ' ';
+      textSpans
+          .add(TextSpan(text: textPrecisions, style: styleDefinitionPrecision));
+    }
+
+    // 2. add meaning
+    textSpans
+        .add(TextSpan(text: '${definition.meaning}\n', style: styleDefinition));
+
+    if (definition.examples != null && unrolled) {
+      // 3. add examples with author & work
+      for (var example in definition.examples) {
+        textSpans.add(TextSpan(text: example.text, style: styleExample));
+        if (example.author != null) {
+          textSpans
+              .add(TextSpan(text: example.author, style: styleExampleAuthors));
+        }
+        if (example.work != null) {
+          textSpans.add(TextSpan(text: example.work, style: styleExampleWork));
+        }
+        textSpans.add(TextSpan(text: '\n'));
+      }
+    }
+
+    final richText = RichText(
+        text: TextSpan(
+            text: textSpans[0].text,
+            style: textSpans[0].style,
+            children: textSpans.getRange(1, textSpans.length).toList()));
+    return AnimatedContainer(
+        duration: Duration(seconds: 1),
+        alignment: Alignment.topLeft,
+        child: (unrolled || definition.examples == null)
+            ? richText
+            : Column(
+                children: <Widget>[richText, Icon(Icons.keyboard_arrow_down)],
+              ));
+  }
 }

@@ -13,6 +13,7 @@ class History extends StatefulWidget {
   HistoryState createState() => HistoryState();
 }
 
+// TODO what if no connection?
 class HistoryState extends State<History> {
   final Set<HistoryWord> _favorites = Set<HistoryWord>();
   final _bigFont = const TextStyle(fontSize: 18);
