@@ -5,21 +5,23 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'dict_db.dart';
 import 'utils.dart';
 
 final styleName = TextStyle(
     fontWeight: FontWeight.bold, fontSize: 30.0, fontFamily: 'Roboto');
 final styleType = TextStyle(fontStyle: FontStyle.italic, fontSize: 16.0);
-final styleDefinition = TextStyle(fontSize: 16.0, color: Colors.black, fontStyle: FontStyle.normal);
-final styleDefinitionNumber =
-    TextStyle(fontSize: 16.0, color: Colors.grey[700], fontStyle: FontStyle.normal);
+final styleDefinition =
+TextStyle(fontSize: 16.0, color: Colors.black, fontStyle: FontStyle.normal);
+final styleDefinitionNumber = TextStyle(
+    fontSize: 16.0, color: Colors.grey[700], fontStyle: FontStyle.normal);
 final styleDefinitionPrecision = TextStyle(
     fontSize: 16.0, color: Colors.grey[700], fontStyle: FontStyle.italic);
 final styleExample = TextStyle(
-    fontStyle: FontStyle.italic, fontSize: 16.0, color: Colors.grey[700]);
-final styleExampleAuthors =
-    TextStyle(fontFamily: 'CarroisGothic', fontSize: 12.0, fontStyle: FontStyle.normal);
-final styleExampleWork = TextStyle(fontStyle: FontStyle.italic, fontSize: 12.0);
+    fontStyle: FontStyle.italic, fontSize: 16.0, color: Colors.blueAccent);
+final styleExampleAuthors = TextStyle(
+    fontFamily: 'CarroisGothic', fontSize: 14.0, fontStyle: FontStyle.normal);
+final styleExampleWork = TextStyle(fontStyle: FontStyle.italic, fontSize: 14.0);
 
 final firebaseCollectionName = 'dictionary';
 
@@ -30,81 +32,97 @@ class WordInfoPage extends StatefulWidget {
   State<StatefulWidget> createState() => WordInfoPageState();
 }
 
+// TODO PRIORITY: rewrite isFavorite handling. Do not make that many calls to db
+// TODO     but pass from page to page. Call db only when changing and at init
+
 // TODO page style => background, font etc
-// TODO add wiki/larousse link
 class WordInfoPageState extends State<WordInfoPage> {
+  final HistoryDatabaseHelper helper = HistoryDatabaseHelper();
+
   WordInfo wordInfo;
   String wordName;
   bool isFavorite;
 
   // TODO cache recent def?
-  // TODO see issues with definitions of eg glacis, eg "GéographiePlan"
   // TODO animate transitions
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final arguments =
-        ModalRoute.of(context).settings.arguments as HistoryToWordInfoArguments;
+    ModalRoute
+        .of(context)
+        .settings
+        .arguments as HistoryToWordInfoArguments;
 
     wordName = arguments.wordName;
     isFavorite = arguments.isFavorite;
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          title: Text(wordName),
-          leading: IconButton(
-              icon: Icon(Icons.arrow_back),
-              onPressed: () => Navigator.pop(context, isFavorite)),
-        ),
-        body: _buildBody(wordName),
-      );
+  Widget build(BuildContext context) =>
+      WillPopScope(
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(wordName),
+              leading: IconButton(
+                  icon: Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.of(context).pop(isFavorite)),
+            ),
+            body: _buildBody(wordName),
+          ),
+          onWillPop: () async {
+            Navigator.of(context).pop(isFavorite);
+            return Future.value(false);
+          });
 
-  Widget _buildBody(String wordName) => Hero(
-      tag: wordName,
-      child: Container(
-          constraints: BoxConstraints.expand(),
+  Widget _buildBody(String wordName) =>
+      Hero(
+          tag: wordName,
+          child: Container(
+              constraints: BoxConstraints.expand(),
 
-          // TODO display word name while retrieving info
-          child: (wordInfo == null)
-              ? FutureBuilder(
-                  future: _getWordInfo(wordName),
-                  builder: (context, snapshot) {
-                    switch (snapshot.connectionState) {
-                      case ConnectionState.active:
-                        return _showProgressIndicator();
-                      case ConnectionState.waiting:
-                        return _showProgressIndicator();
-                      case ConnectionState.none:
-                        return Center(child: Text('ERROR: cannot connect'));
-                      case ConnectionState.done:
-                        if (snapshot.hasError) {
-                          return Center(
-                            child: Text(
-                                'ERROR: could not get data from server\n${snapshot.error}'),
-                          );
-                        } else {
-                          wordInfo = snapshot.data;
-                          return _buildWordInfo();
-                        }
-                        break;
-                      default:
-                        return null;
-                    }
-                  },
-                )
-              : _buildWordInfo()));
+              // TODO display word name while retrieving info
+              child: (wordInfo == null)
+                  ? FutureBuilder(
+                future: _getWordInfo(wordName),
+                builder: (context, snapshot) {
+                  switch (snapshot.connectionState) {
+                    case ConnectionState.active:
+                      return _showProgressIndicator();
+                    case ConnectionState.waiting:
+                      return _showProgressIndicator();
+                    case ConnectionState.none:
+                      return Center(child: Text('ERROR: cannot connect'));
+                    case ConnectionState.done:
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Text(
+                              'ERROR: could not get data from server\n${snapshot
+                                  .error}'),
+                        );
+                      } else {
+                        wordInfo = snapshot.data;
+                        return _buildWordInfo();
+                      }
+                      break;
+                    default:
+                      return null;
+                  }
+                },
+              )
+                  : _buildWordInfo()));
 
-  Widget _showProgressIndicator() => Row(children: [
+  Widget _showProgressIndicator() =>
+      Row(children: [
         Expanded(
             child: Center(
-          child: CircularProgressIndicator(),
-        ))
+              child: CircularProgressIndicator(),
+            ))
       ]);
 
-  Widget _buildWordInfo() => Column(
+  Widget _buildWordInfo() =>
+      Column(
         children: <Widget>[
           SizedBox(
             height: 50.0,
@@ -127,12 +145,13 @@ class WordInfoPageState extends State<WordInfoPage> {
                 alignment: Alignment.centerLeft,
                 width: 60.0,
                 child: IconButton(
-                  onPressed: () {
+                  onPressed: () async {
                     print('tapped fav = $isFavorite');
                     setState(() {
                       isFavorite = !isFavorite;
                     });
-                    print('after $isFavorite');
+                    await helper.updateFavoriteWord(wordName, isFavorite);
+                    print('after = $isFavorite');
                   },
                   icon: Icon(
                     isFavorite ? Icons.favorite : Icons.favorite_border,
@@ -149,41 +168,58 @@ class WordInfoPageState extends State<WordInfoPage> {
               style: styleType,
             ),
           ),
-          // conjugation link or empty space
+          // definition link & conjugation link if existing
           Container(
-            padding: EdgeInsets.only(
-                bottom: (wordInfo.conjugationLink == null) ? 0.0 : 24.0),
-            alignment: Alignment.topCenter,
-            height: 60.0,
-            child: (wordInfo.conjugationLink == null)
-                ? Container()
-                : OutlineButton(
-                    // TODO check button is working
-                    shape: StadiumBorder(),
-                    borderSide: BorderSide(color: Colors.blue),
-                    textColor: Colors.blue,
-                    onPressed: () async {
-                      print('conjugation pressed');
-                      if (await canLaunch(wordInfo.conjugationLink)) {
-                        await launch(wordInfo.conjugationLink);
-                      }
-                    },
-                    child: Text('CONJUGAISON')),
-          ),
+              padding: EdgeInsets.only(bottom: 24.0),
+              alignment: Alignment.topCenter,
+              height: 60.0,
+              child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: <Widget>[
+                    OutlineButton(
+                        shape: StadiumBorder(),
+                        borderSide: BorderSide(color: Colors.blue),
+                        textColor: Colors.blue,
+                        onPressed: () async {
+                          print('link pressed');
+                          if (await canLaunch(wordInfo.link)) {
+                            await launch(wordInfo.link);
+                          }
+                        },
+                        child: Text(wordInfo.link.contains('wiktionary')
+                            ? 'WIKTIONNAIRE'
+                            : wordInfo.link.contains('larousse')
+                            ? 'LAROUSSE'
+                            : 'LIEN')),
+                    (wordInfo.conjugationLink != null)
+                        ? OutlineButton(
+                        shape: StadiumBorder(),
+                        borderSide: BorderSide(color: Colors.blue),
+                        textColor: Colors.blue,
+                        onPressed: () async {
+                          print('conjugation pressed');
+                          if (await canLaunch(wordInfo.conjugationLink)) {
+                            await launch(wordInfo.conjugationLink);
+                          }
+                        },
+                        child: Text('CONJUGAISON'))
+                        : null
+                  ].where((Object o) => o != null).toList())),
           // list of definitions
           _buildDefinitionList(),
         ],
       );
 
-  Widget _buildDefinitionList() => Expanded(
+  Widget _buildDefinitionList() =>
+      Expanded(
           child: ListView.separated(
-        padding: EdgeInsets.symmetric(horizontal: 32.0),
-        shrinkWrap: true,
-        itemCount: wordInfo.definitions.length,
-        itemBuilder: (context, index) =>
-            _buildDefinitionRow(index, wordInfo.definitions[index]),
-        separatorBuilder: (context, index) => Divider(),
-      ));
+            padding: EdgeInsets.symmetric(horizontal: 32.0),
+            shrinkWrap: true,
+            itemCount: wordInfo.definitions.length,
+            itemBuilder: (context, index) =>
+                _buildDefinitionRow(index, wordInfo.definitions[index]),
+            separatorBuilder: (context, index) => Divider(),
+          ));
 
   Widget _buildDefinitionRow(int index, Definition definition) =>
       DefinitionItem(index, definition);
@@ -206,8 +242,8 @@ class WordInfo {
   String conjugationLink;
   String link;
 
-  WordInfo(
-      this.name, this.type, this.definitions, this.conjugationLink, this.link);
+  WordInfo(this.name, this.type, this.definitions, this.conjugationLink,
+      this.link);
 
   WordInfo.fromMap(Map<String, dynamic> wordMap) {
     name = wordMap['name'];
@@ -233,9 +269,9 @@ class Definition {
     this.examples = (argMap['examples'] == null)
         ? null
         : argMap['examples']
-            .map((exampleMap) => Example.fromMap(exampleMap))
-            .toList()
-            .cast<Example>();
+        .map((exampleMap) => Example.fromMap(exampleMap))
+        .toList()
+        .cast<Example>();
     this.precisions = (argMap['precisions'] == null)
         ? null
         : argMap['precisions'].cast<String>();
@@ -273,34 +309,44 @@ class DefinitionItemState extends State<DefinitionItem> {
   var unrolled = false;
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-      onTap: () {
-        setState(() {
-          unrolled = !unrolled;
-        });
-      },
-      child: Container(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Expanded(
-              flex: 1,
-              child: Container(
-                alignment: Alignment.topRight,
-                child: Text(
-                  '${widget.index + 1}. ',
-                  style: styleDefinitionNumber,
+  Widget build(BuildContext context) =>
+      GestureDetector(
+          onTap: () {
+            setState(() {
+              // todo test when no examples (nothing to unroll)
+              if (widget.definition.examples != null) {
+                unrolled = !unrolled;
+              }
+            });
+          },
+          child: Container(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(
+                  flex: 1,
+                  child: Container(
+                    alignment: Alignment.topRight,
+                    child: Text(
+                      '${widget.index + 1}. ',
+                      style: styleDefinitionNumber,
+                    ),
+                  ),
                 ),
-              ),
+                Expanded(
+                    flex: 11,
+                    child: _buildDefinitionAndExample(widget.definition)),
+                Expanded(
+                  flex: 1,
+                  child: widget.definition.examples == null
+                      ? Container()
+                      : Icon(unrolled ? Icons.expand_less : Icons.expand_more),
+                )
+              ],
             ),
-            Expanded(
-                flex: 11, child: _buildDefinitionAndExample(widget.definition)),
-          ],
-        ),
-        padding: EdgeInsets.only(bottom: 8.0),
-      ));
+            padding: EdgeInsets.only(bottom: 8.0),
+          ));
 
-  // TODO whitespaces after description + down arrow as a trailing button + up arrow
   Widget _buildDefinitionAndExample(Definition definition) {
     var textSpans = <TextSpan>[];
     // 1. add precisions surrounded with parenthesis
@@ -319,13 +365,21 @@ class DefinitionItemState extends State<DefinitionItem> {
     if (definition.examples != null && unrolled) {
       // 3. add examples with author & work
       for (var example in definition.examples) {
-        textSpans.add(TextSpan(text: example.text, style: styleExample));
+        textSpans
+            .add(TextSpan(text: '\n"${example.text}"', style: styleExample));
+        if (example.author != null || example.work != null) {
+          textSpans.add(TextSpan(text: '\n'));
+        }
         if (example.author != null) {
-          textSpans
-              .add(TextSpan(text: example.author, style: styleExampleAuthors));
+          textSpans.add(TextSpan(
+              text: example.work == null
+                  ? ' ${example.author}'
+                  : ' ${example.author},',
+              style: styleExampleAuthors));
         }
         if (example.work != null) {
-          textSpans.add(TextSpan(text: example.work, style: styleExampleWork));
+          textSpans
+              .add(TextSpan(text: ' ${example.work}', style: styleExampleWork));
         }
         textSpans.add(TextSpan(text: '\n'));
       }
@@ -339,10 +393,7 @@ class DefinitionItemState extends State<DefinitionItem> {
     return AnimatedContainer(
         duration: Duration(seconds: 1),
         alignment: Alignment.topLeft,
-        child: (unrolled || definition.examples == null)
-            ? richText
-            : Column(
-                children: <Widget>[richText, Icon(Icons.keyboard_arrow_down)],
-              ));
+        curve: Curves.easeOutQuint,
+        child: richText);
   }
 }

@@ -25,10 +25,10 @@ class HistoryWord {
   }
 
   Map<String, dynamic> toMap() => {
-    columnName: name,
-    columnDateChosen: dateChosen,
-    columnIsFavorite: isFavorite ? 1 : 0,
-  };
+        columnName: name,
+        columnDateChosen: dateChosen,
+        columnIsFavorite: isFavorite ? 1 : 0,
+      };
 }
 
 class HistoryDatabaseHelper {
@@ -49,22 +49,20 @@ class HistoryDatabaseHelper {
       });
     }
     await _db.execute(
-        'CREATE TABLE IF NOT EXISTS $wordTableName ($columnName TEXT PRIMARY KEY, $columnDateChosen INTEGER, $columnIsFavorite INTEGER)'
-    );
+        'CREATE TABLE IF NOT EXISTS $wordTableName ($columnName TEXT PRIMARY KEY, $columnDateChosen INTEGER, $columnIsFavorite INTEGER)');
     print('open end');
   }
 
-  Future<List<HistoryWord>> getMostRecentWordsAfter(int chunkSize, int afterDate) async {
+  Future<List<HistoryWord>> getMostRecentWordsAfter(
+      int chunkSize, int afterDate) async {
     print('getWords start');
     await open();
     print('db content ${await _db.query(wordTableName)}');
-    List<Map> maps = await _db.query(
-        wordTableName,
+    List<Map> maps = await _db.query(wordTableName,
         where: '$columnDateChosen < ?',
         whereArgs: [afterDate],
         orderBy: '$columnDateChosen DESC',
-        limit: chunkSize
-    );
+        limit: chunkSize);
     print('getWords end');
     if (maps.length == 0) {
       return null;
@@ -90,11 +88,14 @@ class HistoryDatabaseHelper {
       columns: <String>[columnName],
     );
 
-    return names.map((Map<String, dynamic> map) => map[columnName] as String).toList();
+    return names
+        .map((Map<String, dynamic> map) => map[columnName] as String)
+        .toList();
   }
 
   Future storeWord({HistoryWord word, Map<String, dynamic> wordMap}) async {
-    assert((word != null || wordMap != null) && !(word != null && wordMap != null));
+    assert((word != null || wordMap != null) &&
+        !(word != null && wordMap != null));
     if (word != null) {
       wordMap = word.toMap();
     }
@@ -109,10 +110,27 @@ class HistoryDatabaseHelper {
   Future deleteWord(String wordName) async {
     await open();
     await _db.delete(
-        wordTableName,
-        where: '$columnName = ?',
-        whereArgs: [wordName],
+      wordTableName,
+      where: '$columnName = ?',
+      whereArgs: [wordName],
     );
   }
-}
 
+  Future updateFavoriteWord(String wordName, bool newValue) async {
+    await open();
+    await _db.update(wordTableName, {columnIsFavorite: newValue ? sqlTrue : sqlFalse},
+        where: '$columnName = ?', whereArgs: [wordName]);
+  }
+  
+  Future<bool> checkFavoriteWord(String wordName) async {
+    await open();
+    return (await _db.query(wordTableName, columns: [columnIsFavorite],
+        where: '$columnName = ?', whereArgs: [wordName]))[0][columnIsFavorite] == sqlTrue;
+  }
+
+  Future<List<String>> getFavorites() async {
+    await open();
+    return (await _db.query(wordTableName, columns: [columnName],
+        where: '$columnIsFavorite = ?', whereArgs: [true])).map(( mapElement) => mapElement[columnName]).toList().cast<String>();
+  }
+}
