@@ -1,12 +1,14 @@
 import 'dart:math';
 
-import 'package:auto_size_text/auto_size_text.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flushbar/flushbar.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'dict_db.dart';
+import 'favorites_page.dart';
 import 'utils.dart';
 import 'word_page.dart';
 
@@ -89,35 +91,50 @@ class HistoryState extends State<History> {
 
     // choose randomly in the remainder
     final _random = Random();
-    if (documentsList.length == 0) {
-      // TODO display some message (AlertDialog/Toast/SnackBar)
-      return null;
+    if (documentsList.isEmpty) {
+      Flushbar(
+          title: "C'est fini ! (Pour le moment)",
+          message: 'Tu as épuisé tous mes mots !',
+          duration: Duration(seconds: 4),
+          mainButton: FlatButton(
+              onPressed: () async {
+                const mailto =
+                    "mailto:fxstempfel@gmail.com?subject=[DailyWord] Mots épuisés&body=Il n'y a plus de mots disponibles ! Je VEUX des mots !";
+                if (await canLaunch(mailto)) {
+                  await launch(mailto);
+                }
+              },
+              child: Text(
+                'DIS-LE MOI',
+                style: TextStyle(color: Colors.blue),
+              ))).show(context);
+    } else {
+      var _chosenWord = documentsList[_random.nextInt(documentsList.length)];
+
+      final dateNow = DateTime.now();
+      final dateToday = DateTime(dateNow.year, dateNow.month, dateNow.day);
+
+      // this is our new word:
+      Map<String, dynamic> mapNewWord = {
+        columnName: _chosenWord['name'],
+        columnDateChosen: dateToday.millisecondsSinceEpoch,
+        columnIsFavorite: 0
+      };
+      HistoryWord newWord = HistoryWord.fromMap(mapNewWord);
+
+      // TODO animate when searching the new word => popup with CircularProgress ?
+
+      // add it to history and set state to refresh view
+      setState(() {
+        _history.insert(0, newWord);
+      });
+
+      // store it into db
+      helper.storeWord(wordMap: mapNewWord);
+
+      // to new route
+      _pushToWordInfo(newWord);
     }
-    var _chosenWord = documentsList[_random.nextInt(documentsList.length)];
-
-    final dateNow = DateTime.now();
-    final dateToday = DateTime(dateNow.year, dateNow.month, dateNow.day);
-
-    // this is our new word:
-    Map<String, dynamic> mapNewWord = {
-      columnName: _chosenWord['name'],
-      columnDateChosen: dateToday.millisecondsSinceEpoch,
-      columnIsFavorite: 0
-    };
-    HistoryWord newWord = HistoryWord.fromMap(mapNewWord);
-
-    // TODO animate when searching the new word => popup with CircularProgress ?
-
-    // add it to history and set state to refresh view
-    setState(() {
-      _history.insert(0, newWord);
-    });
-
-    // store it into db
-    helper.storeWord(wordMap: mapNewWord);
-
-    // to new route
-    _pushToWordInfo(newWord);
   }
 
   Widget _buildListViewHistory() => ListView.builder(
@@ -173,29 +190,27 @@ class HistoryState extends State<History> {
       dateText = Intl.withLocale('fr', () => DateFormat('y').format(dateWord));
     }
 
-    return Hero(
-        tag: word.name,
-        child: ListTile(
-          leading: Container(
-            alignment: Alignment.centerLeft,
-            width: 60.0,
-            child: Text(dateText),
-          ),
-          title: Text(
-            word.name,
-            style: _bigFont,
-          ),
-          trailing: Row(
-            children: <Widget>[
-              _saveFavoriteButton(word),
-              _deleteFromHistoryButton(word),
-            ],
-            mainAxisSize: MainAxisSize.min,
-          ),
-          onTap: () async {
-            _pushToWordInfo(word);
-          },
-        ));
+    return ListTile(
+      leading: Container(
+        alignment: Alignment.centerLeft,
+        width: 60.0,
+        child: Text(dateText),
+      ),
+      title: Text(
+        word.name,
+        style: _bigFont,
+      ),
+      trailing: Row(
+        children: <Widget>[
+          _saveFavoriteButton(word),
+          _deleteFromHistoryButton(word),
+        ],
+        mainAxisSize: MainAxisSize.min,
+      ),
+      onTap: () async {
+        _pushToWordInfo(word);
+      },
+    );
   }
 
   void _pushToWordInfo(HistoryWord word) async {
@@ -203,13 +218,13 @@ class HistoryState extends State<History> {
         WordInfoPage.routeName,
         arguments: HistoryToWordInfoArguments(word.name, word.isFavorite));
     print('returned from wordpage with $isFavorite');
-    if (isFavorite && !_favorites.contains(word)) {
+    if (isFavorite && !word.isFavorite) {
       print('adding to favs');
       setState(() {
         _favorites.add(word.name);
         word.isFavorite = true;
       });
-    } else if (!isFavorite && _favorites.contains(word)) {
+    } else if (!isFavorite && word.isFavorite) {
       print('removing from favs');
       setState(() {
         _favorites.remove(word.name);
@@ -264,8 +279,8 @@ class HistoryState extends State<History> {
             actions: <Widget>[
               Container(
                   decoration: BoxDecoration(
-                      color: Colors.blue,
-                      borderRadius: BorderRadius.all(Radius.circular(10.0))),
+                    color: Colors.blue,
+                  ),
                   child: FlatButton(
                     child: Text('Annuler'),
                     textColor: Colors.white,
@@ -275,7 +290,7 @@ class HistoryState extends State<History> {
                   )),
               FlatButton(
                 child: Text('Confirmer la suppression'),
-                textColor: Colors.red,
+                textColor: Colors.blue,
                 onPressed: () {
                   _deleteWord(word);
                   Navigator.of(context).pop();
@@ -287,13 +302,14 @@ class HistoryState extends State<History> {
   }
 
   Future _deleteWord(HistoryWord word) async {
-    // first, remove from database
-    await helper.deleteWord(word.name);
-
-    // second, remove from history
+    // first, remove from history
     setState(() {
       _history.remove(word);
+      _favorites.remove(word.name);
     });
+
+    // second, remove from database
+    await helper.deleteWord(word.name);
   }
 
   Future _getMoreWords() async {
@@ -339,87 +355,35 @@ class HistoryState extends State<History> {
     print('getNextWord end');
   }
 
-  Widget _buildFavoriteTile(String wordName, BuildContext favContext) =>
-      Dismissible(
-          key: Key(wordName),
-          background: Container(color: Colors.red),
-          onDismissed: (direction) {
-            var word =
-                _history.where((word) => word.name == wordName).toList()[0];
-
-            setState(() {
-              _favorites.remove(wordName);
-              word.isFavorite = false;
-            });
-
-            Scaffold.of(favContext).showSnackBar(SnackBar(
-                content: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: <Widget>[
-                  SizedBox(
-                      width: 250,
-                      child: Text('Tu as supprimé $wordName de tes favoris.')),
-                  FlatButton(
-                      onPressed: () {
-                        setState(() {
-                          _favorites.add(wordName);
-                          word.isFavorite = true;
-                        });
-                      },
-                      child: Text(
-                        'ANNULER',
-                        style: TextStyle(color: Colors.amber),
-                      ))
-                ])));
-          },
-          child: ListTile(
-              title: Text(
-                wordName,
-                style: _bigFont,
-              ),
-              onTap: () async {
-                var isFav = await Navigator.of(context).pushNamed(
-                    WordInfoPage.routeName,
-                    arguments: HistoryToWordInfoArguments(wordName, true));
-                print('received $isFav from word page');
-                if (!isFav) {
-                  setState(() {
-                    _favorites.remove(wordName);
-                    _history
-                        .where((word) => word.name == wordName)
-                        .toList()[0]
-                        .isFavorite = false;
-                  });
-                  if (_favorites.isEmpty) {
-                    Navigator.of(context).pop();
-                  }
-                }
-              }));
-
   // go to a page listing favorite words
-  void _toFavorites() {
+  void _toFavorites() async {
     if (_favorites.isNotEmpty) {
-      // TODO Use whole new route for favs? weigh pros and cons (pros: could cancel deletion/cons: need to pass _favorites in route arg)
-      // TODO also changing isFavorite not always taken into account returning from a page
-      Navigator.of(context).push(MaterialPageRoute(
-          builder: (BuildContext context) => Scaffold(
-                appBar: AppBar(
-                  title: Text("Favoris"),
-                ),
-                body: ListView.builder(
-                    itemCount: _favorites.length,
-                    itemBuilder: (context, index) =>
-                        _buildFavoriteTile(_favorites[index], context)),
-              )));
-      print('after _toFavorites(), _favorites = $_favorites');
+      // go to FavoritesPage and update _favorites when returning (some words might have been deleted)
+      _favorites = await Navigator.of(context).pushNamed(
+          FavoritesPage.routeName,
+          arguments: HistoryToFavoritesArguments(_favorites)) as List<String>;
+
+      if (_favorites == null) {
+        _favorites = <String>[];
+      }
+
+      // update HistoryWords accordingly
+      setState(() {
+        _history.forEach((word) {
+          if (!_favorites.contains(word.name) && word.isFavorite) {
+            word.isFavorite = false;
+          }
+        });
+      });
     } else {
-      Scaffold.of(context).showSnackBar(SnackBar(
-          backgroundColor: Colors.orange,
-          content: Text(
-            "Tu n'as pas encore de favoris. Clique sur un cœur !",
-            style: TextStyle(color: Colors.black, fontSize: 16),
-          ),
-          duration: Duration(seconds: 3)));
+      Flushbar(
+              backgroundColor: Colors.orange,
+              messageText: Text(
+                "Tu n'as pas encore de favoris. Clique sur un cœur !",
+                style: TextStyle(color: Colors.black, fontSize: 16),
+              ),
+              duration: Duration(seconds: 3))
+          .show(context);
     }
   }
 }

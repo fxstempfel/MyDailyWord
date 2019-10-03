@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'favorites_page.dart';
 import 'history_page.dart';
 import 'word_page.dart';
 
@@ -18,6 +19,7 @@ class DailyWordApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         WordInfoPage.routeName: (context) => WordInfoPage(),
+        FavoritesPage.routeName: (context) => FavoritesPage()
       },
       home: Scaffold(
         body: Center(
