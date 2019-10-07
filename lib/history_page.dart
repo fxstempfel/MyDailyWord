@@ -1,13 +1,12 @@
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flushbar/flushbar.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'dict_db.dart';
+import 'history_db.dart';
 import 'favorites_page.dart';
 import 'utils.dart';
 import 'word_page.dart';
@@ -19,7 +18,6 @@ class History extends StatefulWidget {
 
 // TODO what if no internet connection?
 class HistoryState extends State<History> {
-  final _bigFont = const TextStyle(fontSize: 18);
   final HistoryDatabaseHelper helper = HistoryDatabaseHelper();
   final chunkSize = 10;
 
@@ -52,10 +50,13 @@ class HistoryState extends State<History> {
     super.dispose();
   }
 
+  // TODO color top-right fav list's icon
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
-          title: Text('Mes mots'),
+          title: Text(
+            'Mes mots',
+          ),
           actions: <Widget>[
             IconButton(
               icon: Image.asset('assets/images/list_favorites.png'),
@@ -66,6 +67,7 @@ class HistoryState extends State<History> {
         body: _buildListViewHistory(),
         floatingActionButton: FloatingActionButton(
           child: Icon(Icons.add),
+          foregroundColor: colorSecondary,
           onPressed: addNewWord,
         ),
       );
@@ -92,22 +94,18 @@ class HistoryState extends State<History> {
     // choose randomly in the remainder
     final _random = Random();
     if (documentsList.isEmpty) {
-      Flushbar(
-          title: "C'est fini ! (Pour le moment)",
-          message: 'Tu as épuisé tous mes mots !',
-          duration: Duration(seconds: 4),
-          mainButton: FlatButton(
-              onPressed: () async {
-                const mailto =
-                    "mailto:fxstempfel@gmail.com?subject=[DailyWord] Mots épuisés&body=Il n'y a plus de mots disponibles ! Je VEUX des mots !";
-                if (await canLaunch(mailto)) {
-                  await launch(mailto);
-                }
-              },
-              child: Text(
-                'DIS-LE MOI',
-                style: TextStyle(color: Colors.blue),
-              ))).show(context);
+      flushbarFactory(
+          context: context,
+          messageString: 'Tu as épuisé tous mes mots !',
+          titleString: "C'est fini ! (Pour le moment)",
+          buttonOnPressed: () async {
+            const mailto =
+                "mailto:fxstempfel@gmail.com?subject=[DailyWord] Mots épuisés&body=Il n'y a plus de mots disponibles ! Je VEUX des mots !";
+            if (await canLaunch(mailto)) {
+              await launch(mailto);
+            }
+          },
+          buttonString: 'Dis-le moi');
     } else {
       var _chosenWord = documentsList[_random.nextInt(documentsList.length)];
 
@@ -164,7 +162,9 @@ class HistoryState extends State<History> {
         child: Center(
           child: Opacity(
             opacity: _isRequestingMoreHistoryWords ? 1.0 : 0.0,
-            child: CircularProgressIndicator(),
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(colorAccent),
+            ),
           ),
         ),
       );
@@ -178,9 +178,9 @@ class HistoryState extends State<History> {
 
     var dateText;
     if (difference.inDays == 0) {
-      dateText = "Auj";
+      dateText = "auj.";
     } else if (difference.inDays == 1) {
-      dateText = 'Hier';
+      dateText = 'hier';
     } else if (difference.inDays < 7) {
       dateText =
           Intl.withLocale('fr', () => DateFormat('E d').format(dateWord));
@@ -194,11 +194,14 @@ class HistoryState extends State<History> {
       leading: Container(
         alignment: Alignment.centerLeft,
         width: 60.0,
-        child: Text(dateText),
+        child: Text(
+          dateText,
+          style: Theme.of(context).textTheme.subtitle,
+        ),
       ),
       title: Text(
         word.name,
-        style: _bigFont,
+        style: Theme.of(context).textTheme.title,
       ),
       trailing: Row(
         children: <Widget>[
@@ -214,51 +217,58 @@ class HistoryState extends State<History> {
   }
 
   void _pushToWordInfo(HistoryWord word) async {
-    var isFavorite = await Navigator.of(context).pushNamed(
-        WordInfoPage.routeName,
-        arguments: HistoryToWordInfoArguments(word.name, word.isFavorite));
-    print('returned from wordpage with $isFavorite');
-    if (isFavorite && !word.isFavorite) {
-      print('adding to favs');
-      setState(() {
-        _favorites.add(word.name);
-        word.isFavorite = true;
-      });
-    } else if (!isFavorite && word.isFavorite) {
-      print('removing from favs');
-      setState(() {
-        _favorites.remove(word.name);
-        word.isFavorite = false;
-      });
+    var backArgs = await Navigator.of(context).pushNamed(WordInfoPage.routeName,
+            arguments: HistoryToWordInfoArguments(word.name, word.isFavorite))
+        as WordInfoToHistoryArguments;
+
+    if (backArgs.toDelete) {
+      print('will delete ${word.name}');
+      _deleteWord(word);
+    } else {
+      print('returned from wordpage with ${backArgs.isFavorite}');
+      if (backArgs.isFavorite && !word.isFavorite) {
+        print('adding to favs');
+        setState(() {
+          _favorites.add(word.name);
+          _favorites.sort();
+          word.isFavorite = true;
+        });
+      } else if (!backArgs.isFavorite && word.isFavorite) {
+        print('removing from favs');
+        setState(() {
+          _favorites.remove(word.name);
+          word.isFavorite = false;
+        });
+      }
     }
   }
 
-  Widget _saveFavoriteButton(HistoryWord word) {
-    return IconButton(
-      onPressed: () async {
-        setState(() {
-          if (word.isFavorite) {
-            _favorites.remove(word.name);
-            word.isFavorite = false;
-          } else {
-            _favorites.add(word.name);
-            word.isFavorite = true;
-          }
-        });
-        print('calling update favorite');
-        await helper.updateFavoriteWord(word.name, word.isFavorite);
-        print('call returned');
-      },
-      icon: Icon(
-        word.isFavorite ? Icons.favorite : Icons.favorite_border,
-        color: word.isFavorite ? Colors.red : null,
-      ),
-    );
-  }
+  Widget _saveFavoriteButton(HistoryWord word) => IconButton(
+        onPressed: () async {
+          setState(() {
+            if (word.isFavorite) {
+              _favorites.remove(word.name);
+              word.isFavorite = false;
+            } else {
+              _favorites.add(word.name);
+              _favorites.sort();
+              word.isFavorite = true;
+            }
+          });
+          print('calling update favorite');
+          helper.updateFavoriteWord(word.name, word.isFavorite);
+          print('call returned');
+        },
+        icon: Icon(
+          word.isFavorite ? Icons.favorite : Icons.favorite_border,
+          color: word.isFavorite ? colorAccent : colorPrimaryDark,
+        ),
+      );
 
   Widget _deleteFromHistoryButton(HistoryWord word) => IconButton(
         icon: Icon(
           Icons.delete,
+          color: colorPrimaryDark,
         ),
         onPressed: () {
           _showDialogDelete(word);
@@ -266,39 +276,64 @@ class HistoryState extends State<History> {
       );
 
   void _showDialogDelete(HistoryWord word) {
-    var contentText = _favorites.contains(word)
+    var contentText = (word.isFavorite)
         ? "Es-tu sûr·e de vouloir supprimer ${word.name} ?\nC'est un de tes favoris !"
         : "Es-tu sûr·e de vouloir supprimer ${word.name} ?";
 
     showDialog(
         context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: Text('Supprimer ce mot ?'),
-            content: Text(contentText),
-            actions: <Widget>[
-              Container(
-                  decoration: BoxDecoration(
-                    color: Colors.blue,
+        builder: (context) => AlertDialog(
+              // TODO background in secondary maybe with title background accentSecondary
+              title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Text(
+                      'Supprimer ce mot ?',
+                      style: TextStyle(
+                          color: colorTextOnPrimary,
+                          fontSize: 20,
+                          fontStyle: FontStyle.normal),
+                    ),
+                    Divider(
+                      color: colorAccentSecond,
+                    )
+                  ]),
+              content: Text(contentText,
+                  style: TextStyle(
+                      color: colorTextOnPrimary,
+                      fontSize: 16,
+                      fontStyle: FontStyle.normal)),
+              actions: <Widget>[
+                FlatButton(
+                  child: Text(
+                    'SUPPRIMER',
+                    style: TextStyle(
+                        color: colorTextOnPrimary,
+                        fontSize: 16,
+                        fontStyle: FontStyle.normal),
                   ),
-                  child: FlatButton(
-                    child: Text('Annuler'),
-                    textColor: Colors.white,
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                  )),
-              FlatButton(
-                child: Text('Confirmer la suppression'),
-                textColor: Colors.blue,
-                onPressed: () {
-                  _deleteWord(word);
-                  Navigator.of(context).pop();
-                },
-              )
-            ],
-          );
-        });
+                  onPressed: () {
+                    _deleteWord(word);
+                    Navigator.of(context).pop();
+                  },
+                ),
+                Container(
+                    decoration: BoxDecoration(
+                      color: colorAccent,
+                    ),
+                    child: FlatButton(
+                      child: Text('ANNULER',
+                          style: TextStyle(
+                              color: colorSecondary,
+                              fontSize: 16,
+                              fontStyle: FontStyle.normal)),
+                      textColor: colorTextOnAccent,
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                    ))
+              ],
+            ));
   }
 
   Future _deleteWord(HistoryWord word) async {
@@ -309,7 +344,7 @@ class HistoryState extends State<History> {
     });
 
     // second, remove from database
-    await helper.deleteWord(word.name);
+    helper.deleteWord(word.name);
   }
 
   Future _getMoreWords() async {
@@ -336,7 +371,6 @@ class HistoryState extends State<History> {
               duration: new Duration(milliseconds: 500),
               curve: Curves.easeOut);
         }
-        // TODO this is not working
         // removing indicator
         setState(() {
           _isRequestingMoreHistoryWords = false;
@@ -347,6 +381,7 @@ class HistoryState extends State<History> {
           _favorites.addAll(_newWords
               .where((word) => word.isFavorite)
               .map((word) => word.name));
+          _favorites.sort();
           _dateOfLastWord = _newWords.last.dateChosen;
           _isRequestingMoreHistoryWords = false;
         });
@@ -355,13 +390,23 @@ class HistoryState extends State<History> {
     print('getNextWord end');
   }
 
-  // go to a page listing favorite words
+// go to a page listing favorite words
   void _toFavorites() async {
     if (_favorites.isNotEmpty) {
-      // go to FavoritesPage and update _favorites when returning (some words might have been deleted)
-      _favorites = await Navigator.of(context).pushNamed(
-          FavoritesPage.routeName,
-          arguments: HistoryToFavoritesArguments(_favorites)) as List<String>;
+      // go to FavoritesPage
+      var backArgs = await Navigator.of(context).pushNamed(
+              FavoritesPage.routeName,
+              arguments: HistoryToFavoritesArguments(_favorites))
+          as FavoritesToHistoryArguments;
+
+      // delete words that have been deleted (can occur when navigating to word page, if the word is not found in firebase)
+      backArgs.toDeleteFromHistoryNames.forEach((wordName) {
+        _deleteWord(
+            _history.where((word) => word.name == wordName).toList()[0]);
+      });
+
+      // update _favorites (some words might have been deleted)
+      _favorites = backArgs.favoritesNames;
 
       if (_favorites == null) {
         _favorites = <String>[];
@@ -376,14 +421,9 @@ class HistoryState extends State<History> {
         });
       });
     } else {
-      Flushbar(
-              backgroundColor: Colors.orange,
-              messageText: Text(
-                "Tu n'as pas encore de favoris. Clique sur un cœur !",
-                style: TextStyle(color: Colors.black, fontSize: 16),
-              ),
-              duration: Duration(seconds: 3))
-          .show(context);
+      flushbarFactory(
+          context: context,
+          messageString: "Tu n'as pas encore de favoris. Clique sur un cœur !");
     }
   }
 }

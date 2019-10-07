@@ -5,23 +5,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'dict_db.dart';
+import 'cache_db.dart';
+import 'history_db.dart';
 import 'utils.dart';
-
-final styleName = TextStyle(
-    fontWeight: FontWeight.bold, fontSize: 30.0, fontFamily: 'Roboto');
-final styleType = TextStyle(fontStyle: FontStyle.italic, fontSize: 16.0);
-final styleDefinition =
-    TextStyle(fontSize: 16.0, color: Colors.black, fontStyle: FontStyle.normal);
-final styleDefinitionNumber = TextStyle(
-    fontSize: 16.0, color: Colors.grey[700], fontStyle: FontStyle.normal);
-final styleDefinitionPrecision = TextStyle(
-    fontSize: 16.0, color: Colors.grey[700], fontStyle: FontStyle.italic);
-final styleExample = TextStyle(
-    fontStyle: FontStyle.italic, fontSize: 16.0, color: Colors.blueAccent);
-final styleExampleAuthors = TextStyle(
-    fontFamily: 'CarroisGothic', fontSize: 14.0, fontStyle: FontStyle.normal);
-final styleExampleWork = TextStyle(fontStyle: FontStyle.italic, fontSize: 14.0);
 
 final firebaseCollectionName = 'dictionary';
 
@@ -32,15 +18,16 @@ class WordInfoPage extends StatefulWidget {
   State<StatefulWidget> createState() => WordInfoPageState();
 }
 
-// TODO page style => background, font etc
+// TODO see malévole, "ou" between precisions / also boulingrin
+// TODO when unfav-ing and pushing back buttons, refav-ing
 class WordInfoPageState extends State<WordInfoPage> {
-  final HistoryDatabaseHelper helper = HistoryDatabaseHelper();
+  final HistoryDatabaseHelper dbHelperHistory = HistoryDatabaseHelper();
+  final CacheDatabaseHelper dbHelperCache = CacheDatabaseHelper();
 
   WordInfo wordInfo;
   String wordName;
   bool isFavorite;
 
-  // TODO cache recent def?
   // TODO animate transitions
 
   @override
@@ -57,15 +44,22 @@ class WordInfoPageState extends State<WordInfoPage> {
   Widget build(BuildContext context) => WillPopScope(
       child: Scaffold(
         appBar: AppBar(
-          title: Text(wordName),
+          title: Text(
+            wordName,
+          ),
           leading: IconButton(
-              icon: Icon(Icons.arrow_back),
-              onPressed: () => Navigator.of(context).pop(isFavorite)),
+              icon: Icon(
+                Icons.arrow_back,
+                color: colorSecondary,
+              ),
+              onPressed: () => Navigator.of(context)
+                  .pop(WordInfoToHistoryArguments.favorite(isFavorite))),
         ),
         body: _buildBody(wordName),
       ),
       onWillPop: () async {
-        Navigator.of(context).pop(isFavorite);
+        Navigator.of(context)
+            .pop(WordInfoToHistoryArguments.favorite(isFavorite));
         return Future.value(false);
       });
 
@@ -91,7 +85,11 @@ class WordInfoPageState extends State<WordInfoPage> {
                       );
                     } else {
                       wordInfo = snapshot.data;
-                      return _buildWordInfo();
+                      if (wordInfo == null) {
+                        return _buildWordNotFound();
+                      } else {
+                        return _buildWordInfo();
+                      }
                     }
                     break;
                   default:
@@ -106,37 +104,41 @@ class WordInfoPageState extends State<WordInfoPage> {
           height: 50.0,
         ),
         // word name
-        ListTile(
-          leading: Container(
-            // to center word name
-            width: 60.0,
-          ),
-          title: Container(
-            alignment: Alignment.center,
-            child: AutoSizeText(
-              wordName,
-              style: styleName,
-              maxLines: 1,
-            ),
-          ),
-          trailing: Container(
-              alignment: Alignment.centerLeft,
-              width: 60.0,
-              child: IconButton(
-                onPressed: () async {
-                  print('tapped fav = $isFavorite');
-                  setState(() {
-                    isFavorite = !isFavorite;
-                  });
-                  await helper.updateFavoriteWord(wordName, isFavorite);
-                  print('after = $isFavorite');
-                },
-                icon: Icon(
-                  isFavorite ? Icons.favorite : Icons.favorite_border,
-                  color: isFavorite ? Colors.red : null,
+        Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: <Widget>[
+              Container(
+                // to center word name
+                width: 60.0,
+              ),
+              Container(
+                alignment: Alignment.topCenter,
+                child: AutoSizeText(
+                  wordName,
+                  style: Theme.of(context)
+                      .textTheme
+                      .display1
+                      .copyWith(color: colorAccent),
+                  maxLines: 1,
                 ),
-              )),
-        ),
+              ),
+              Container(
+                  alignment: Alignment.bottomLeft,
+                  width: 60.0,
+                  padding: EdgeInsets.only(bottom: 0, top: 12),
+                  child: IconButton(
+                    onPressed: () async {
+                      setState(() {
+                        isFavorite = !isFavorite;
+                      });
+                      dbHelperHistory.updateFavoriteWord(wordName, isFavorite);
+                    },
+                    icon: Icon(
+                      isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: isFavorite ? colorAccent : colorPrimaryDark,
+                    ),
+                  )),
+            ]),
 // word type
         SizedBox(
           height: 80.0,
@@ -144,10 +146,66 @@ class WordInfoPageState extends State<WordInfoPage> {
         Row(children: [
           Expanded(
               child: Center(
-            child: CircularProgressIndicator(),
+            child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(colorAccent)),
           ))
         ])
       ]);
+
+  // TODO propose to replace with another word
+  Widget _buildWordNotFound() => Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Container(
+              padding: EdgeInsets.symmetric(horizontal: 32.0),
+              child: Center(
+                  child: RichText(
+                text: TextSpan(
+                    text: 'Impossible de trouver ',
+                    style: Theme.of(context).textTheme.body2,
+                    children: [
+                      TextSpan(
+                          text: '$wordName',
+                          style: Theme.of(context)
+                              .textTheme
+                              .body2
+                              .copyWith(fontWeight: FontWeight.bold)),
+                      TextSpan(
+                          text:
+                              " dans la base de données. Cela est probablement dû à sa suppression. Tu n'auras plus accès à sa définition, à moins qu'il soit à nouveau ajouté. Veux-tu le supprimer de tes mots ?",
+                          style: Theme.of(context).textTheme.body2)
+                    ]),
+              ))),
+          SizedBox(
+            height: 32,
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: <Widget>[
+              FlatButton(
+                  onPressed: () {
+                    Navigator.of(context)
+                        .pop(WordInfoToHistoryArguments.favorite(isFavorite));
+                  },
+                  child: Text('GARDER',
+                      style: Theme.of(context).textTheme.button)),
+              FlatButton(
+                onPressed: () {
+                  Navigator.of(context)
+                      .pop(WordInfoToHistoryArguments.toDelete());
+                },
+                child: Text('SUPPRIMER',
+                    style: Theme.of(context)
+                        .textTheme
+                        .button
+                        .copyWith(color: colorSecondary)),
+                color: colorPrimaryDark,
+              )
+            ],
+          )
+        ],
+      );
 
   Widget _buildWordInfo() => Column(
         children: <Widget>[
@@ -155,44 +213,49 @@ class WordInfoPageState extends State<WordInfoPage> {
             height: 50.0,
           ),
           // word name
-          ListTile(
-            leading: Container(
-              // to center word name
-              width: 60.0,
-            ),
-            title: Container(
-              alignment: Alignment.center,
-              child: AutoSizeText(
-                wordInfo.name,
-                style: styleName,
-                maxLines: 1,
-              ),
-            ),
-            trailing: Container(
-                alignment: Alignment.centerLeft,
-                width: 60.0,
-                child: IconButton(
-                  onPressed: () async {
-                    print('tapped fav = $isFavorite');
-                    setState(() {
-                      isFavorite = !isFavorite;
-                    });
-                    await helper.updateFavoriteWord(wordName, isFavorite);
-                    print('after = $isFavorite');
-                  },
-                  icon: Icon(
-                    isFavorite ? Icons.favorite : Icons.favorite_border,
-                    color: isFavorite ? Colors.red : null,
+          Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: <Widget>[
+                Container(
+                  // to center word name
+                  width: 60.0,
+                ),
+                Container(
+                  alignment: Alignment.topCenter,
+                  child: AutoSizeText(
+                    wordName,
+                    style: Theme.of(context)
+                        .textTheme
+                        .display1
+                        .copyWith(color: colorAccent),
+                    maxLines: 1,
                   ),
-                )),
-          ),
+                ),
+                Container(
+                    alignment: Alignment.bottomLeft,
+                    width: 60.0,
+                    padding: EdgeInsets.only(bottom: 0, top: 12),
+                    child: IconButton(
+                      onPressed: () async {
+                        setState(() {
+                          isFavorite = !isFavorite;
+                        });
+                        dbHelperHistory.updateFavoriteWord(
+                            wordName, isFavorite);
+                      },
+                      icon: Icon(
+                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                        color: isFavorite ? colorAccent : colorPrimaryDark,
+                      ),
+                    )),
+              ]),
           // word type
           Container(
             padding: EdgeInsets.only(top: 0.0, bottom: 16.0),
             alignment: Alignment.topCenter,
             child: Text(
               wordInfo.type,
-              style: styleType,
+              style: Theme.of(context).textTheme.subhead,
             ),
           ),
           // definition link & conjugation link if existing
@@ -205,31 +268,42 @@ class WordInfoPageState extends State<WordInfoPage> {
                   children: <Widget>[
                     OutlineButton(
                         shape: StadiumBorder(),
-                        borderSide: BorderSide(color: Colors.blue),
-                        textColor: Colors.blue,
+                        borderSide: BorderSide(color: colorAccent),
                         onPressed: () async {
-                          print('link pressed');
                           if (await canLaunch(wordInfo.link)) {
                             await launch(wordInfo.link);
                           }
                         },
-                        child: Text(wordInfo.link.contains('wiktionary')
-                            ? 'WIKTIONNAIRE'
-                            : wordInfo.link.contains('larousse')
-                                ? 'LAROUSSE'
-                                : 'LIEN')),
+                        child: Text(
+                          wordInfo.link.contains('wiktionary')
+                              ? 'Wiktionnaire'
+                              : wordInfo.link.contains('larousse')
+                                  ? 'Larousse'
+                                  : 'Lien',
+                          style: Theme.of(context).textTheme.button.copyWith(
+                              color: colorAccent,
+                              fontSize: 20,
+                              fontFamily: 'DancingScript'),
+                        )),
                     (wordInfo.conjugationLink != null)
                         ? OutlineButton(
                             shape: StadiumBorder(),
-                            borderSide: BorderSide(color: Colors.blue),
-                            textColor: Colors.blue,
+                            borderSide: BorderSide(color: colorAccent),
                             onPressed: () async {
-                              print('conjugation pressed');
                               if (await canLaunch(wordInfo.conjugationLink)) {
                                 await launch(wordInfo.conjugationLink);
                               }
                             },
-                            child: Text('CONJUGAISON'))
+                            child: Text(
+                              'Conjugaison',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .button
+                                  .copyWith(
+                                      color: colorAccent,
+                                      fontSize: 20,
+                                      fontFamily: 'DancingScript'),
+                            ))
                         : null
                   ].where((Object o) => o != null).toList())),
           // list of definitions
@@ -250,73 +324,28 @@ class WordInfoPageState extends State<WordInfoPage> {
   Widget _buildDefinitionRow(int index, Definition definition) =>
       DefinitionItem(index, definition);
 
-// TODO unroll some words by default
-
   Future<WordInfo> _getWordInfo(String wordName) async {
-    DocumentSnapshot documentSnapshot = await Firestore.instance
-        .collection(firebaseCollectionName)
-        .document(wordName)
-        .get();
-    return WordInfo.fromMap(documentSnapshot.data);
-  }
-}
+    // look for the info in cache
+    var word = await dbHelperCache.getWordInfo(wordName);
+    if (word != null) {
+      return WordInfo.fromMap(word);
+    } else {
+      // if not found, get from firebase
+      var documentSnapshot = await Firestore.instance
+          .collection(firebaseCollectionName)
+          .document(wordName)
+          .get();
 
-class WordInfo {
-  String name;
-  String type;
-  List<Definition> definitions;
-  String conjugationLink;
-  String link;
-
-  WordInfo(
-      this.name, this.type, this.definitions, this.conjugationLink, this.link);
-
-  WordInfo.fromMap(Map<String, dynamic> wordMap) {
-    name = wordMap['name'];
-    type = wordMap['type'];
-    conjugationLink = wordMap['conjugation_link'];
-    definitions = wordMap['definitions']
-        .map((defMap) => Definition.fromMap(defMap))
-        .toList()
-        .cast<Definition>();
-    link = wordMap['link'];
-  }
-}
-
-class Definition {
-  String meaning;
-  List<Example> examples;
-  List<String> precisions;
-
-  Definition(this.meaning, this.examples, this.precisions);
-
-  Definition.fromMap(Map<dynamic, dynamic> argMap) {
-    this.meaning = argMap['meaning'];
-    this.examples = (argMap['examples'] == null)
-        ? null
-        : argMap['examples']
-            .map((exampleMap) => Example.fromMap(exampleMap))
-            .toList()
-            .cast<Example>();
-    this.precisions = (argMap['precisions'] == null)
-        ? null
-        : argMap['precisions'].cast<String>();
-  }
-
-  String toString() => '${this.meaning}\nExamples: ${this.examples}';
-}
-
-class Example {
-  String text;
-  String author;
-  String work;
-
-  Example(this.text, this.author, this.work);
-
-  Example.fromMap(Map<dynamic, dynamic> map) {
-    this.text = map['text'];
-    this.author = map['author'];
-    this.work = map['work'];
+      if (documentSnapshot == null || documentSnapshot.data == null) {
+        // if still not found in firebase, it might have been deleted
+        return null;
+      } else {
+        // else, everything OK
+        var wordFirebase = WordInfo.fromMap(documentSnapshot.data);
+        dbHelperCache.storeWordInfo(wordFirebase);
+        return wordFirebase;
+      }
+    }
   }
 }
 
@@ -338,7 +367,6 @@ class DefinitionItemState extends State<DefinitionItem> {
   Widget build(BuildContext context) => GestureDetector(
       onTap: () {
         setState(() {
-          // todo test when no examples (nothing to unroll)
           if (widget.definition.examples != null) {
             unrolled = !unrolled;
           }
@@ -354,18 +382,22 @@ class DefinitionItemState extends State<DefinitionItem> {
                 alignment: Alignment.topRight,
                 child: Text(
                   '${widget.index + 1}. ',
-                  style: styleDefinitionNumber,
+                  style: Theme.of(context).textTheme.body2,
                 ),
               ),
             ),
             Expanded(
                 flex: 11, child: _buildDefinitionAndExample(widget.definition)),
             Expanded(
-              flex: 1,
-              child: widget.definition.examples == null
-                  ? Container()
-                  : Icon(unrolled ? Icons.expand_less : Icons.expand_more),
-            )
+                flex: 1,
+                child: widget.definition.examples == null
+                    ? Container()
+                    : Container(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: Icon(
+                            unrolled ? Icons.expand_less : Icons.expand_more,
+                            color: colorPrimaryDark),
+                      ))
           ],
         ),
         padding: EdgeInsets.only(bottom: 8.0),
@@ -378,38 +410,49 @@ class DefinitionItemState extends State<DefinitionItem> {
       var textPrecisions =
           definition.precisions.map((precision) => '($precision)').join(' ') +
               ' ';
-      textSpans
-          .add(TextSpan(text: textPrecisions, style: styleDefinitionPrecision));
+      textSpans.add(TextSpan(
+          text: textPrecisions,
+          style: Theme.of(context).textTheme.body2.copyWith(
+              color: colorPrimaryDark,
+              fontStyle: FontStyle.italic,
+              fontWeight: FontWeight.w400)));
     }
 
     // 2. add meaning
-    textSpans
-        .add(TextSpan(text: '${definition.meaning}\n', style: styleDefinition));
+    textSpans.add(TextSpan(
+        text: '${definition.meaning}\n',
+        style: Theme.of(context).textTheme.body2));
 
     if (definition.examples != null && unrolled) {
       // 3. add examples with author & work
       for (var example in definition.examples) {
-        textSpans
-            .add(TextSpan(text: '\n"${example.text}"', style: styleExample));
+        textSpans.add(TextSpan(
+            text: '\n"${example.text}"',
+            style: Theme.of(context).textTheme.body1));
         if (example.author != null || example.work != null) {
           textSpans.add(TextSpan(text: '\n'));
         }
         if (example.author != null) {
           textSpans.add(TextSpan(
               text: example.work == null
-                  ? ' ${example.author}'
-                  : ' ${example.author},',
-              style: styleExampleAuthors));
+                  ? ' ${example.author.toUpperCase()}'
+                  : ' ${example.author.toUpperCase()},',
+              style: Theme.of(context)
+                  .textTheme
+                  .caption
+                  .copyWith(fontStyle: FontStyle.normal)));
         }
         if (example.work != null) {
-          textSpans
-              .add(TextSpan(text: ' ${example.work}', style: styleExampleWork));
+          textSpans.add(TextSpan(
+              text: ' ${example.work}',
+              style: Theme.of(context).textTheme.caption));
         }
         textSpans.add(TextSpan(text: '\n'));
       }
     }
 
     final richText = RichText(
+        textAlign: TextAlign.justify,
         text: TextSpan(
             text: textSpans[0].text,
             style: textSpans[0].style,

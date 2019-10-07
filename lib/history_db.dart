@@ -4,10 +4,11 @@ import 'package:sqflite/sqflite.dart';
 import 'package:synchronized/synchronized.dart';
 
 final String wordDbName = 'word.db';
-final String wordTableName = 'words';
+final String wordHistoryTableName = 'words';
 final String columnName = 'name';
 final String columnDateChosen = 'dateChosen';
 final String columnIsFavorite = 'isFavorite';
+
 final int sqlFalse = 0;
 final int sqlTrue = 1;
 
@@ -36,11 +37,9 @@ class HistoryDatabaseHelper {
   final _lock = Lock();
 
   Future open() async {
-    print('open start');
     if (_db == null) {
       await _lock.synchronized(() async {
         if (_db == null) {
-          print('opening db');
           _db = await openDatabase(
             wordDbName,
             version: 2,
@@ -48,22 +47,20 @@ class HistoryDatabaseHelper {
         }
       });
     }
-    await _db.execute(
-        'CREATE TABLE IF NOT EXISTS $wordTableName ($columnName TEXT PRIMARY KEY, $columnDateChosen INTEGER, $columnIsFavorite INTEGER)');
-    print('open end');
+    await _db.transaction((txn) async {
+      txn.execute('CREATE TABLE IF NOT EXISTS $wordHistoryTableName ($columnName TEXT PRIMARY KEY, $columnDateChosen INTEGER, $columnIsFavorite INTEGER)');
+    });
+
   }
 
   Future<List<HistoryWord>> getMostRecentWordsAfter(
       int chunkSize, int afterDate) async {
-    print('getWords start');
     await open();
-    print('db content ${await _db.query(wordTableName)}');
-    List<Map> maps = await _db.query(wordTableName,
+    List<Map> maps = await _db.query(wordHistoryTableName,
         where: '$columnDateChosen < ?',
         whereArgs: [afterDate],
         orderBy: '$columnDateChosen DESC',
         limit: chunkSize);
-    print('getWords end');
     if (maps.length == 0) {
       return null;
     } else {
@@ -72,11 +69,9 @@ class HistoryDatabaseHelper {
   }
 
   Future<HistoryWord> getMostRecentWordAfter(int afterDate) async {
-    print('getWord start');
     await open();
     var list = await getMostRecentWordsAfter(1, afterDate);
     var word = list == null ? null : list[0];
-    print('getWord end with ${word.name}');
     return word;
   }
 
@@ -84,7 +79,7 @@ class HistoryDatabaseHelper {
     // Returns the list of names of words that have already been picked
     await open();
     var names = await _db.query(
-      wordTableName,
+      wordHistoryTableName,
       columns: <String>[columnName],
     );
 
@@ -101,7 +96,7 @@ class HistoryDatabaseHelper {
     }
     await open();
     await _db.insert(
-      wordTableName,
+      wordHistoryTableName,
       wordMap,
       conflictAlgorithm: ConflictAlgorithm.ignore,
     );
@@ -110,7 +105,7 @@ class HistoryDatabaseHelper {
   Future deleteWord(String wordName) async {
     await open();
     await _db.delete(
-      wordTableName,
+      wordHistoryTableName,
       where: '$columnName = ?',
       whereArgs: [wordName],
     );
@@ -118,19 +113,19 @@ class HistoryDatabaseHelper {
 
   Future updateFavoriteWord(String wordName, bool newValue) async {
     await open();
-    await _db.update(wordTableName, {columnIsFavorite: newValue ? sqlTrue : sqlFalse},
+    await _db.update(wordHistoryTableName, {columnIsFavorite: newValue ? sqlTrue : sqlFalse},
         where: '$columnName = ?', whereArgs: [wordName]);
   }
   
   Future<bool> checkFavoriteWord(String wordName) async {
     await open();
-    return (await _db.query(wordTableName, columns: [columnIsFavorite],
+    return (await _db.query(wordHistoryTableName, columns: [columnIsFavorite],
         where: '$columnName = ?', whereArgs: [wordName]))[0][columnIsFavorite] == sqlTrue;
   }
 
   Future<List<String>> getFavorites() async {
     await open();
-    return (await _db.query(wordTableName, columns: [columnName],
+    return (await _db.query(wordHistoryTableName, columns: [columnName],
         where: '$columnIsFavorite = ?', whereArgs: [true])).map(( mapElement) => mapElement[columnName]).toList().cast<String>();
   }
 }
