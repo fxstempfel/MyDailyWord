@@ -18,8 +18,6 @@ class WordInfoPage extends StatefulWidget {
   State<StatefulWidget> createState() => WordInfoPageState();
 }
 
-// TODO see malévole, "ou" between precisions / also boulingrin
-// TODO when unfav-ing and pushing back buttons, refav-ing
 class WordInfoPageState extends State<WordInfoPage> {
   final HistoryDatabaseHelper dbHelperHistory = HistoryDatabaseHelper();
   final CacheDatabaseHelper dbHelperCache = CacheDatabaseHelper();

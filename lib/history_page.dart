@@ -25,7 +25,8 @@ class HistoryState extends State<History> {
   List<HistoryWord> _history = <HistoryWord>[];
   int _dateOfLastWord;
   bool _isRequestingMoreHistoryWords = false;
-  List<String> _favorites = List<String>();
+  List<String> _favorites = <String>[];
+  List<HistoryWord> listSelected = <HistoryWord>[];
 
   @override
   void initState() {
@@ -50,27 +51,120 @@ class HistoryState extends State<History> {
     super.dispose();
   }
 
-  // TODO color top-right fav list's icon
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          title: Text(
-            'Mes mots',
-          ),
-          actions: <Widget>[
-            IconButton(
-              icon: Image.asset('assets/images/list_favorites.png'),
-              onPressed: _toFavorites,
+  Widget build(BuildContext context) {
+    var nbSelectedWords = listSelected.length;
+    return Scaffold(
+      appBar: listSelected.isEmpty
+          ? AppBar(
+              title: Text(
+                'Mes mots',
+              ),
+              actions: <Widget>[
+                IconButton(
+                  icon: Image.asset('assets/images/list_favorites.png'),
+                  onPressed: _toFavorites,
+                )
+              ],
             )
-          ],
-        ),
-        body: _buildListViewHistory(),
-        floatingActionButton: FloatingActionButton(
-          child: Icon(Icons.add),
-          foregroundColor: colorSecondary,
-          onPressed: addNewWord,
-        ),
-      );
+          : AppBar(
+              backgroundColor: colorAccentSecond,
+              title: Text(
+                nbSelectedWords == 1
+                    ? '1 mot sélectionné'
+                    : '$nbSelectedWords mots sélectionnés',
+                style: TextStyle(color: colorTextOnAccent),
+              ),
+              actions: <Widget>[
+                IconButton(
+                  icon: Icon(Icons.close, color: colorTextOnAccent),
+                  onPressed: () {
+                    setState(() {
+                      listSelected = [];
+                    });
+                  },
+                ),
+                IconButton(
+                  icon: Icon(Icons.delete, color: colorTextOnAccent),
+                  onPressed: deleteAllSelected,
+                )
+              ],
+            ),
+      body: _buildListViewHistory(),
+      floatingActionButton: FloatingActionButton(
+        child: Icon(Icons.add),
+        foregroundColor: colorSecondary,
+        onPressed: addNewWord,
+      ),
+    );
+  }
+
+  void deleteAllSelected() {
+    var nbSelectedWords = listSelected.length;
+    showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+              title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Text(
+                      nbSelectedWords == 1
+                          ? 'Supprimer ce mot ?'
+                          : 'Supprimer ces $nbSelectedWords mots ?',
+                      style: TextStyle(
+                          color: colorTextOnPrimary,
+                          fontSize: 20,
+                          fontStyle: FontStyle.normal),
+                    ),
+                    Divider(
+                      color: colorAccentSecond,
+                    )
+                  ]),
+              content: Text(
+                  nbSelectedWords == 1
+                      ? "Es-tu sûr·e de vouloir supprimer ${listSelected[0].name} ?"
+                      : "Es-tu sûr·e de vouloir supprimer $nbSelectedWords mots ?",
+                  style: TextStyle(
+                      color: colorTextOnPrimary,
+                      fontSize: 16,
+                      fontStyle: FontStyle.normal)),
+              actions: <Widget>[
+                FlatButton(
+                  child: Text(
+                    'SUPPRIMER',
+                    style: TextStyle(
+                        color: colorTextOnPrimary,
+                        fontSize: 16,
+                        fontStyle: FontStyle.normal),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      listSelected.forEach((word) {
+                        _deleteWord(word);
+                      });
+                      listSelected = [];
+                    });
+                    Navigator.of(context).pop();
+                  },
+                ),
+                Container(
+                    decoration: BoxDecoration(
+                      color: colorAccent,
+                    ),
+                    child: FlatButton(
+                      child: Text('ANNULER',
+                          style: TextStyle(
+                              color: colorSecondary,
+                              fontSize: 16,
+                              fontStyle: FontStyle.normal)),
+                      textColor: colorTextOnAccent,
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                    ))
+              ],
+            ));
+  }
 
   void addNewWord() async {
     // TODO check if button has been pressed today
@@ -142,7 +236,9 @@ class HistoryState extends State<History> {
             : 2 * _history.length,
         itemBuilder: (context, index) {
           if (index.isOdd) {
-            return Divider();
+            return Divider(
+              height: 0,
+            );
           } else if (index == 2 * _history.length) {
             if (_isRequestingMoreHistoryWords) {
               return _buildProgressIndicator();
@@ -190,30 +286,7 @@ class HistoryState extends State<History> {
       dateText = Intl.withLocale('fr', () => DateFormat('y').format(dateWord));
     }
 
-    return ListTile(
-      leading: Container(
-        alignment: Alignment.centerLeft,
-        width: 60.0,
-        child: Text(
-          dateText,
-          style: Theme.of(context).textTheme.subtitle,
-        ),
-      ),
-      title: Text(
-        word.name,
-        style: Theme.of(context).textTheme.title,
-      ),
-      trailing: Row(
-        children: <Widget>[
-          _saveFavoriteButton(word),
-          _deleteFromHistoryButton(word),
-        ],
-        mainAxisSize: MainAxisSize.min,
-      ),
-      onTap: () async {
-        _pushToWordInfo(word);
-      },
-    );
+    return WordTile(this, word, dateText);
   }
 
   void _pushToWordInfo(HistoryWord word) async {
@@ -243,7 +316,7 @@ class HistoryState extends State<History> {
     }
   }
 
-  Widget _saveFavoriteButton(HistoryWord word) => IconButton(
+  Widget _saveFavoriteButton(HistoryWord word, {Color color}) => IconButton(
         onPressed: () async {
           setState(() {
             if (word.isFavorite) {
@@ -261,7 +334,7 @@ class HistoryState extends State<History> {
         },
         icon: Icon(
           word.isFavorite ? Icons.favorite : Icons.favorite_border,
-          color: word.isFavorite ? colorAccent : colorPrimaryDark,
+          color: color ?? (word.isFavorite ? colorAccent : colorPrimaryDark),
         ),
       );
 
@@ -283,7 +356,6 @@ class HistoryState extends State<History> {
     showDialog(
         context: context,
         builder: (context) => AlertDialog(
-              // TODO background in secondary maybe with title background accentSecondary
               title: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
@@ -448,31 +520,81 @@ class _WordTileState extends State<WordTile> {
     isSelected = false;
   }
 
+  void _selectWord(select) {
+    print('select word called');
+    if (select) {
+      setState(() {
+        isSelected = true;
+      });
+      widget.historyState.setState(() {
+        widget.historyState.listSelected.add(widget.word);
+      });
+    } else {
+      setState(() {
+        isSelected = false;
+      });
+      widget.historyState.setState(() {
+        widget.historyState.listSelected.remove(widget.word);
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Container(
-        alignment: Alignment.centerLeft,
-        width: 60.0,
-        child: Text(
-          widget.dateText,
-          style: Theme.of(context).textTheme.subtitle,
-        ),
-      ),
-      title: Text(
-        widget.word.name,
-        style: Theme.of(context).textTheme.title,
-      ),
-      trailing: Row(
-        children: <Widget>[
-          widget.historyState._saveFavoriteButton(widget.word),
-          widget.historyState._deleteFromHistoryButton(widget.word),
-        ],
-        mainAxisSize: MainAxisSize.min,
-      ),
-      onTap: () async {
-        widget.historyState._pushToWordInfo(widget.word);
-      },
-    );
+    isSelected = widget.historyState.listSelected.contains(widget.word);
+    return Container(
+        padding: EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(
+            color: isSelected ? colorPrimaryDark : colorSecondary,
+            border: BorderDirectional(
+                top: BorderSide(color: colorSecondary, width: 0.5),
+                bottom: BorderSide(color: colorSecondary, width: 0.5))),
+        child: ListTile(
+          leading: Container(
+            alignment: Alignment.centerLeft,
+            width: 60.0,
+            child: Text(
+              widget.dateText,
+              style: isSelected
+                  ? Theme.of(context)
+                      .textTheme
+                      .subtitle
+                      .copyWith(color: colorSecondary)
+                  : Theme.of(context).textTheme.subtitle,
+            ),
+          ),
+          title: Text(
+            widget.word.name,
+            style: isSelected
+                ? Theme.of(context)
+                    .textTheme
+                    .title
+                    .copyWith(color: colorSecondary)
+                : Theme.of(context).textTheme.title,
+          ),
+          trailing: Row(
+            children: <Widget>[
+              widget.historyState._saveFavoriteButton(widget.word,
+                  color: isSelected ? colorSecondary : null),
+              isSelected
+                  ? IconButton(
+                      icon: Icon(Icons.delete, color: colorPrimaryDark),
+                      onPressed: () {},
+                    )
+                  : widget.historyState._deleteFromHistoryButton(widget.word),
+            ],
+            mainAxisSize: MainAxisSize.min,
+          ),
+          onTap: () async {
+            if (isSelected) {
+              _selectWord(false);
+            } else {
+              widget.historyState._pushToWordInfo(widget.word);
+            }
+          },
+          onLongPress: () {
+            _selectWord(!isSelected);
+          },
+        ));
   }
 }
