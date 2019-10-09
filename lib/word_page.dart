@@ -200,7 +200,7 @@ class WordInfoPageState extends State<WordInfoPage> {
                         .textTheme
                         .button
                         .copyWith(color: colorSecondary)),
-                color: colorPrimaryDark,
+                color: colorAccent,
               )
             ],
           )

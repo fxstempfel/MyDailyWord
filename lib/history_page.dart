@@ -427,3 +427,52 @@ class HistoryState extends State<History> {
     }
   }
 }
+
+class WordTile extends StatefulWidget {
+  final HistoryState historyState;
+  final HistoryWord word;
+  final String dateText;
+
+  const WordTile(this.historyState, this.word, this.dateText);
+
+  @override
+  State createState() => _WordTileState();
+}
+
+class _WordTileState extends State<WordTile> {
+  var isSelected;
+
+  @override
+  void initState() {
+    super.initState();
+    isSelected = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Container(
+        alignment: Alignment.centerLeft,
+        width: 60.0,
+        child: Text(
+          widget.dateText,
+          style: Theme.of(context).textTheme.subtitle,
+        ),
+      ),
+      title: Text(
+        widget.word.name,
+        style: Theme.of(context).textTheme.title,
+      ),
+      trailing: Row(
+        children: <Widget>[
+          widget.historyState._saveFavoriteButton(widget.word),
+          widget.historyState._deleteFromHistoryButton(widget.word),
+        ],
+        mainAxisSize: MainAxisSize.min,
+      ),
+      onTap: () async {
+        widget.historyState._pushToWordInfo(widget.word);
+      },
+    );
+  }
+}
