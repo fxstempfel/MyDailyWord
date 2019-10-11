@@ -77,6 +77,7 @@ class FavoritesPageState extends State<FavoritesPage> {
                 setState(() {
                   _favoritesNames.insert(index, wordName);
                 });
+
               },
               buttonString: 'Annuler',
               onStatusChanged: (status) {

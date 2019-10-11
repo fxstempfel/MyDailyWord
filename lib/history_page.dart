@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:feature_discovery/feature_discovery.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -16,10 +17,12 @@ class History extends StatefulWidget {
   HistoryState createState() => HistoryState();
 }
 
+// TODO sometimes black screen when back button
 // TODO what if no internet connection?
 class HistoryState extends State<History> {
   final HistoryDatabaseHelper helper = HistoryDatabaseHelper();
   final chunkSize = 10;
+  static const tagFab = 'fab_add_word';
 
   ScrollController _scrollController = ScrollController();
   List<HistoryWord> _history = <HistoryWord>[];
@@ -27,6 +30,7 @@ class HistoryState extends State<History> {
   bool _isRequestingMoreHistoryWords = false;
   List<String> _favorites = <String>[];
   List<HistoryWord> listSelected = <HistoryWord>[];
+  bool _canCallFeatureDiscovery;
 
   @override
   void initState() {
@@ -43,6 +47,7 @@ class HistoryState extends State<History> {
         _getMoreWords();
       }
     });
+    _canCallFeatureDiscovery = false;
   }
 
   @override
@@ -53,50 +58,76 @@ class HistoryState extends State<History> {
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((duration) {
+      print('callback called, history = ${_history.length}');
+      if (_canCallFeatureDiscovery) {
+        if (_history.isEmpty) {
+          FeatureDiscovery.discoverFeatures(context, const <String>[
+            tagFab
+          ] // Feature ids for every feature that you want to showcase in order},
+              );
+        } else {
+          FeatureDiscovery.dismiss(context);
+        }
+      } else {
+        // build is called after initState and called once afterwards.
+        // We do not want to display feature discovery after initState because _history is not filled yet.
+        _canCallFeatureDiscovery = true;
+      }
+    });
+    print('build not started');
     var nbSelectedWords = listSelected.length;
     return Scaffold(
-      appBar: listSelected.isEmpty
-          ? AppBar(
-              title: Text(
-                'Mes mots',
-              ),
-              actions: <Widget>[
-                IconButton(
-                  icon: Image.asset('assets/images/list_favorites.png'),
-                  onPressed: _toFavorites,
-                )
-              ],
-            )
-          : AppBar(
-              backgroundColor: colorAccentSecond,
-              title: Text(
-                nbSelectedWords == 1
-                    ? '1 mot sélectionné'
-                    : '$nbSelectedWords mots sélectionnés',
-                style: TextStyle(color: colorTextOnAccent),
-              ),
-              actions: <Widget>[
-                IconButton(
-                  icon: Icon(Icons.close, color: colorTextOnAccent),
+        appBar: listSelected.isEmpty
+            ? AppBar(
+                title: Text(
+                  'Mes mots',
+                ),
+                actions: <Widget>[
+                  IconButton(
+                    icon: Image.asset('assets/images/list_favorites.png'),
+                    onPressed: _toFavorites,
+                  )
+                ],
+              )
+            : AppBar(
+                backgroundColor: colorSecondary,
+                leading: IconButton(
+                  icon: Icon(Icons.close, color: colorAccentSecond),
                   onPressed: () {
                     setState(() {
                       listSelected = [];
                     });
                   },
                 ),
-                IconButton(
-                  icon: Icon(Icons.delete, color: colorTextOnAccent),
-                  onPressed: deleteAllSelected,
-                )
-              ],
-            ),
-      body: _buildListViewHistory(),
-      floatingActionButton: FloatingActionButton(
-        child: Icon(Icons.add),
-        foregroundColor: colorSecondary,
-        onPressed: addNewWord,
-      ),
-    );
+                title: Text(
+                  nbSelectedWords == 1
+                      ? '1 mot sélectionné'
+                      : '$nbSelectedWords mots sélectionnés',
+                  style: TextStyle(color: colorAccentSecond),
+                ),
+                actions: <Widget>[
+                  IconButton(
+                    icon: Icon(Icons.delete, color: colorAccentSecond),
+                    onPressed: deleteAllSelected,
+                  )
+                ],
+              ),
+        body: _buildListViewHistory(),
+        floatingActionButton: DescribedFeatureOverlay(
+          featureId: tagFab,
+          backgroundColor: colorAccentSecond,
+          textColor: colorSecondary,
+          tapTarget: Icon(Icons.add),
+          title: Text('Ajouter des mots'),
+          description: Text(
+              "Tu n'as pas encore de mots. Pour en obtenir, utilise le bouton \"plus\". Tu as droit à un mot par jour."),
+          child: FloatingActionButton(
+            child: Icon(Icons.add),
+            foregroundColor: colorSecondary,
+            onPressed: addNewWord,
+          ),
+        ));
   }
 
   void deleteAllSelected() {
@@ -229,29 +260,43 @@ class HistoryState extends State<History> {
     }
   }
 
-  Widget _buildListViewHistory() => ListView.builder(
-        controller: _scrollController,
-        itemCount: _isRequestingMoreHistoryWords
-            ? 2 * _history.length + 1
-            : 2 * _history.length,
-        itemBuilder: (context, index) {
-          if (index.isOdd) {
-            return Divider(
-              height: 0,
-            );
-          } else if (index == 2 * _history.length) {
-            if (_isRequestingMoreHistoryWords) {
-              return _buildProgressIndicator();
-            } else {
+  Widget _buildListViewHistory() => _history.isEmpty
+      ? Column(children: <Widget>[
+          Expanded(
+              child: Center(
+                  child: Text(
+                "C'est bien triste sans mots...",
+                style: Theme.of(context).textTheme.title,
+              )),
+              flex: 2),
+          Expanded(
+            child: Container(),
+            flex: 3,
+          )
+        ])
+      : ListView.builder(
+          controller: _scrollController,
+          itemCount: _isRequestingMoreHistoryWords
+              ? 2 * _history.length + 1
+              : 2 * _history.length,
+          itemBuilder: (context, index) {
+            if (index.isOdd) {
               return Divider(
-                height: 0.0,
+                height: 0,
               );
+            } else if (index == 2 * _history.length) {
+              if (_isRequestingMoreHistoryWords) {
+                return _buildProgressIndicator();
+              } else {
+                return Divider(
+                  height: 0.0,
+                );
+              }
+            } else {
+              return _buildRow(index ~/ 2);
             }
-          } else {
-            return _buildRow(index ~/ 2);
-          }
-        },
-      );
+          },
+        );
 
   Widget _buildProgressIndicator() => Padding(
         padding: const EdgeInsets.all(8.0),
@@ -334,14 +379,14 @@ class HistoryState extends State<History> {
         },
         icon: Icon(
           word.isFavorite ? Icons.favorite : Icons.favorite_border,
-          color: color ?? (word.isFavorite ? colorAccent : colorPrimaryDark),
+          color: color ?? (word.isFavorite ? colorAccent : colorPrimary),
         ),
       );
 
   Widget _deleteFromHistoryButton(HistoryWord word) => IconButton(
         icon: Icon(
           Icons.delete,
-          color: colorPrimaryDark,
+          color: colorPrimary,
         ),
         onPressed: () {
           _showDialogDelete(word);
@@ -434,14 +479,17 @@ class HistoryState extends State<History> {
       // add them to history
       if (_newWords == null) {
         // unless none have been found. In this case, scroll up to hide last ListView item (ie progress indicator)
-        double edge = 50.0;
-        double offsetFromBottom = _scrollController.position.maxScrollExtent -
-            _scrollController.position.pixels;
-        if (offsetFromBottom < edge) {
-          _scrollController.animateTo(
-              _scrollController.offset - (edge - offsetFromBottom),
-              duration: new Duration(milliseconds: 500),
-              curve: Curves.easeOut);
+        if (_history.isNotEmpty) {
+          // scroller does not exist if in no scroller view has been initialized
+          double edge = 50.0;
+          double offsetFromBottom = _scrollController.position.maxScrollExtent -
+              _scrollController.position.pixels;
+          if (offsetFromBottom < edge) {
+            _scrollController.animateTo(
+                _scrollController.offset - (edge - offsetFromBottom),
+                duration: new Duration(milliseconds: 500),
+                curve: Curves.easeOut);
+          }
         }
         // removing indicator
         setState(() {
@@ -459,6 +507,7 @@ class HistoryState extends State<History> {
         });
       }
     }
+
     print('getNextWord end');
   }
 
@@ -543,9 +592,9 @@ class _WordTileState extends State<WordTile> {
   Widget build(BuildContext context) {
     isSelected = widget.historyState.listSelected.contains(widget.word);
     return Container(
-        padding: EdgeInsets.symmetric(vertical: 6),
+        padding: EdgeInsets.symmetric(vertical: 4),
         decoration: BoxDecoration(
-            color: isSelected ? colorPrimaryDark : colorSecondary,
+            color: isSelected ? colorAccentSecond : colorSecondary,
             border: BorderDirectional(
                 top: BorderSide(color: colorSecondary, width: 0.5),
                 bottom: BorderSide(color: colorSecondary, width: 0.5))),
@@ -578,7 +627,7 @@ class _WordTileState extends State<WordTile> {
                   color: isSelected ? colorSecondary : null),
               isSelected
                   ? IconButton(
-                      icon: Icon(Icons.delete, color: colorPrimaryDark),
+                      icon: Icon(Icons.delete, color: colorAccentSecond),
                       onPressed: () {},
                     )
                   : widget.historyState._deleteFromHistoryButton(widget.word),
@@ -586,8 +635,8 @@ class _WordTileState extends State<WordTile> {
             mainAxisSize: MainAxisSize.min,
           ),
           onTap: () async {
-            if (isSelected) {
-              _selectWord(false);
+            if (widget.historyState.listSelected.isNotEmpty) {
+              _selectWord(!isSelected);
             } else {
               widget.historyState._pushToWordInfo(widget.word);
             }

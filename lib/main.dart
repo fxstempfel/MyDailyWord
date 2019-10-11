@@ -1,3 +1,4 @@
+import 'package:feature_discovery/feature_discovery.dart';
 import 'package:flutter/material.dart';
 
 import 'favorites_page.dart';
@@ -12,7 +13,8 @@ void main() => runApp(DailyWordApp());
 
 class DailyWordApp extends StatelessWidget {
   @override
-  Widget build(BuildContext context) => MaterialApp(
+  Widget build(BuildContext context) => FeatureDiscovery(
+          child: MaterialApp(
         title: 'Daily Word',
         color: colorPrimary,
         initialRoute: '/',
@@ -26,14 +28,13 @@ class DailyWordApp extends StatelessWidget {
           ),
         ),
         theme: ThemeData(
-            primaryColorDark: colorPrimaryDark,
             primaryColor: colorPrimary,
             accentColor: colorAccent,
-            dividerColor: colorPrimaryDark,
+            dividerColor: colorPrimary,
             scaffoldBackgroundColor: colorSecondary,
             dialogBackgroundColor: colorSecondary,
             appBarTheme: AppBarTheme(
-                color: colorPrimaryDark,
+                color: colorPrimary,
                 brightness: Brightness.dark,
                 textTheme: TextTheme(
                     title: TextStyle(color: colorSecondary, fontSize: 20))),
@@ -73,5 +74,5 @@ class DailyWordApp extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                   fontStyle: FontStyle.normal),
             )),
-      );
+      ));
 }

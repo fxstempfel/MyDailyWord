@@ -3,11 +3,10 @@ import 'dart:ui';
 import 'package:flushbar/flushbar.dart';
 import 'package:flutter/material.dart';
 
-const colorPrimaryDark = Color(0xFF292B66);
-const colorPrimary = Color(0xFFC6D8D3);
+const colorPrimary = Color(0xFFE88229);
 const colorSecondary = Color(0xFFFFFEE0);
-const colorAccent = Color(0xFF993633);
-const colorAccentSecond = Color(0xFFE08E45);
+const colorAccent = Color(0xFF992623);
+const colorAccentSecond = Color(0xFF292B66);
 // 4E5340 (green) OR E08E45 (orange)
 const colorTextOnPrimary = Color(0xFF3A3335);
 const colorTextOnAccent = Color(0xFFFFFEE0);

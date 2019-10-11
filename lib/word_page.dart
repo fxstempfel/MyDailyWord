@@ -133,7 +133,7 @@ class WordInfoPageState extends State<WordInfoPage> {
                     },
                     icon: Icon(
                       isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: isFavorite ? colorAccent : colorPrimaryDark,
+                      color: isFavorite ? colorAccent : colorPrimary,
                     ),
                   )),
             ]),
@@ -243,7 +243,7 @@ class WordInfoPageState extends State<WordInfoPage> {
                       },
                       icon: Icon(
                         isFavorite ? Icons.favorite : Icons.favorite_border,
-                        color: isFavorite ? colorAccent : colorPrimaryDark,
+                        color: isFavorite ? colorAccent : colorPrimary,
                       ),
                     )),
               ]),
@@ -394,7 +394,7 @@ class DefinitionItemState extends State<DefinitionItem> {
                         padding: EdgeInsets.symmetric(horizontal: 12),
                         child: Icon(
                             unrolled ? Icons.expand_less : Icons.expand_more,
-                            color: colorPrimaryDark),
+                            color: colorPrimary),
                       ))
           ],
         ),
@@ -411,7 +411,7 @@ class DefinitionItemState extends State<DefinitionItem> {
       textSpans.add(TextSpan(
           text: textPrecisions,
           style: Theme.of(context).textTheme.body2.copyWith(
-              color: colorPrimaryDark,
+              color: colorPrimary,
               fontStyle: FontStyle.italic,
               fontWeight: FontWeight.w400)));
     }
