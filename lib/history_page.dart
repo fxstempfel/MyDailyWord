@@ -5,6 +5,7 @@ import 'package:feature_discovery/feature_discovery.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'history_db.dart';
@@ -20,9 +21,11 @@ class History extends StatefulWidget {
 // TODO sometimes black screen when back button
 // TODO what if no internet connection?
 class HistoryState extends State<History> {
-  final HistoryDatabaseHelper helper = HistoryDatabaseHelper();
-  final chunkSize = 10;
+  static const chunkSize = 10;
   static const tagFab = 'fab_add_word';
+  static const lastDayAddedWordKey = 'last_day_added_word';
+
+  final HistoryDatabaseHelper helper = HistoryDatabaseHelper();
 
   ScrollController _scrollController = ScrollController();
   List<HistoryWord> _history = <HistoryWord>[];
@@ -31,6 +34,7 @@ class HistoryState extends State<History> {
   List<String> _favorites = <String>[];
   List<HistoryWord> listSelected = <HistoryWord>[];
   bool _canCallFeatureDiscovery;
+  bool _canAddNewWord = false;
 
   @override
   void initState() {
@@ -48,6 +52,37 @@ class HistoryState extends State<History> {
       }
     });
     _canCallFeatureDiscovery = false;
+
+    checkCanAddNewWord();
+  }
+
+  Future<DateTime> getLastDayAddedWord() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    var lastDayInt = prefs.getInt(lastDayAddedWordKey);
+    return DateTime.fromMillisecondsSinceEpoch(lastDayInt ?? 12700000000);
+  }
+
+  Future storeLastDayAddedWord() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final dateNow = DateTime.now();
+    final dateToday = DateTime(dateNow.year, dateNow.month, dateNow.day);
+    prefs.setInt(lastDayAddedWordKey, dateToday.millisecondsSinceEpoch);
+  }
+
+  Future checkCanAddNewWord() async {
+    final dateNow = DateTime.now();
+    final dateToday = DateTime(dateNow.year, dateNow.month, dateNow.day);
+    var lastDayAddedWord = await getLastDayAddedWord();
+    var isAfter = dateToday.isAfter(lastDayAddedWord);
+    if (isAfter && !_canAddNewWord) {
+      setState(() {
+        _canAddNewWord = true;
+      });
+    } else if (!isAfter && _canAddNewWord) {
+      setState(() {
+        _canAddNewWord = false;
+      });
+    }
   }
 
   @override
@@ -58,24 +93,27 @@ class HistoryState extends State<History> {
 
   @override
   Widget build(BuildContext context) {
+    checkCanAddNewWord();
     WidgetsBinding.instance.addPostFrameCallback((duration) {
       print('callback called, history = ${_history.length}');
-      if (_canCallFeatureDiscovery) {
-        if (_history.isEmpty) {
-          FeatureDiscovery.discoverFeatures(context, const <String>[
-            tagFab
-          ] // Feature ids for every feature that you want to showcase in order},
-              );
+      if (_canAddNewWord) {
+        if (_canCallFeatureDiscovery) {
+          if (_history.isEmpty) {
+            FeatureDiscovery.discoverFeatures(context, const <String>[
+              tagFab
+            ] // Feature ids for every feature that you want to showcase in order},
+                );
+          } else {
+            FeatureDiscovery.dismiss(context);
+          }
         } else {
-          FeatureDiscovery.dismiss(context);
+          // build is called after initState and called once afterwards.
+          // We do not want to display feature discovery after initState because _history is not filled yet.
+          _canCallFeatureDiscovery = true;
         }
-      } else {
-        // build is called after initState and called once afterwards.
-        // We do not want to display feature discovery after initState because _history is not filled yet.
-        _canCallFeatureDiscovery = true;
       }
     });
-    print('build not started');
+    print('canAddNewWord = $_canAddNewWord');
     var nbSelectedWords = listSelected.length;
     return Scaffold(
         appBar: listSelected.isEmpty
@@ -114,20 +152,32 @@ class HistoryState extends State<History> {
                 ],
               ),
         body: _buildListViewHistory(),
-        floatingActionButton: DescribedFeatureOverlay(
-          featureId: tagFab,
-          backgroundColor: colorAccentSecond,
-          textColor: colorSecondary,
-          tapTarget: Icon(Icons.add),
-          title: Text('Ajouter des mots'),
-          description: Text(
-              "Tu n'as pas encore de mots. Pour en obtenir, utilise le bouton \"plus\". Tu as droit à un mot par jour."),
-          child: FloatingActionButton(
-            child: Icon(Icons.add),
-            foregroundColor: colorSecondary,
-            onPressed: addNewWord,
-          ),
-        ));
+        floatingActionButton: _canAddNewWord
+            ? DescribedFeatureOverlay(
+                featureId: tagFab,
+                backgroundColor: colorAccentSecond,
+                textColor: colorSecondary,
+                tapTarget: Icon(Icons.add),
+                title: Text('Ajouter des mots'),
+                description: Text(
+                    "Tu n'as pas encore de mots. Pour en obtenir, utilise le bouton \"plus\". Tu as droit à un mot par jour."),
+                child: FloatingActionButton(
+                  child: Icon(Icons.add),
+                  foregroundColor: colorSecondary,
+                  onPressed: addNewWord,
+                ),
+              )
+            : FloatingActionButton(
+                child: Icon(Icons.add),
+                foregroundColor: colorSecondary,
+                backgroundColor: colorGrayAccent,
+                onPressed: () {
+                  flushbarFactory(
+                      context: context,
+                      messageString:
+                          "Patiente jusqu'à demain pour découvrir un nouveau mot !");
+                },
+              ));
   }
 
   void deleteAllSelected() {
@@ -198,7 +248,6 @@ class HistoryState extends State<History> {
   }
 
   void addNewWord() async {
-    // TODO check if button has been pressed today
     // get documents
     QuerySnapshot querySnapshot =
         await Firestore.instance.collection('dictionary').getDocuments();
@@ -250,10 +299,14 @@ class HistoryState extends State<History> {
       // add it to history and set state to refresh view
       setState(() {
         _history.insert(0, newWord);
+        _canAddNewWord = false;
       });
 
       // store it into db
       helper.storeWord(wordMap: mapNewWord);
+
+      // store date
+      storeLastDayAddedWord();
 
       // to new route
       _pushToWordInfo(newWord);
