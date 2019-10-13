@@ -35,13 +35,12 @@ class HistoryState extends State<History> {
   List<HistoryWord> listSelected = <HistoryWord>[];
   bool _canCallFeatureDiscovery;
   bool _canAddNewWord = false;
+  bool _isAddingNewWord = false;
 
   @override
   void initState() {
     super.initState();
     initializeDateFormatting('fr');
-
-    print('initializing state');
 
     _dateOfLastWord = DateTime.now().millisecondsSinceEpoch;
     _getMoreWords();
@@ -95,7 +94,6 @@ class HistoryState extends State<History> {
   Widget build(BuildContext context) {
     checkCanAddNewWord();
     WidgetsBinding.instance.addPostFrameCallback((duration) {
-      print('callback called, history = ${_history.length}');
       if (_canAddNewWord) {
         if (_canCallFeatureDiscovery) {
           if (_history.isEmpty) {
@@ -113,7 +111,6 @@ class HistoryState extends State<History> {
         }
       }
     });
-    print('canAddNewWord = $_canAddNewWord');
     var nbSelectedWords = listSelected.length;
     return Scaffold(
         appBar: listSelected.isEmpty
@@ -152,32 +149,43 @@ class HistoryState extends State<History> {
                 ],
               ),
         body: _buildListViewHistory(),
-        floatingActionButton: _canAddNewWord
-            ? DescribedFeatureOverlay(
-                featureId: tagFab,
-                backgroundColor: colorAccentSecond,
-                textColor: colorSecondary,
-                tapTarget: Icon(Icons.add),
-                title: Text('Ajouter des mots'),
-                description: Text(
-                    "Tu n'as pas encore de mots. Pour en obtenir, utilise le bouton \"plus\". Tu as droit à un mot par jour."),
-                child: FloatingActionButton(
-                  child: Icon(Icons.add),
-                  foregroundColor: colorSecondary,
-                  onPressed: addNewWord,
-                ),
-              )
-            : FloatingActionButton(
-                child: Icon(Icons.add),
-                foregroundColor: colorSecondary,
-                backgroundColor: colorGrayAccent,
-                onPressed: () {
-                  flushbarFactory(
-                      context: context,
-                      messageString:
-                          "Patiente jusqu'à demain pour découvrir un nouveau mot !");
-                },
-              ));
+        floatingActionButton: _isAddingNewWord
+            ? FloatingActionButton(
+                backgroundColor: colorAccent,
+                child: SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.8,
+                      valueColor: AlwaysStoppedAnimation<Color>(colorSecondary),
+                    )),
+                onPressed: null)
+            : _canAddNewWord
+                ? DescribedFeatureOverlay(
+                    featureId: tagFab,
+                    backgroundColor: colorAccentSecond,
+                    textColor: colorSecondary,
+                    tapTarget: Icon(Icons.add),
+                    title: Text('Ajouter des mots'),
+                    description: Text(
+                        "Tu n'as pas encore de mots. Pour en obtenir, utilise le bouton \"plus\". Tu as droit à un mot par jour."),
+                    child: FloatingActionButton(
+                      child: Icon(Icons.add),
+                      foregroundColor: colorSecondary,
+                      onPressed: addNewWord,
+                    ),
+                  )
+                : FloatingActionButton(
+                    child: Icon(Icons.add),
+                    foregroundColor: colorSecondary,
+                    backgroundColor: colorGrayAccent,
+                    onPressed: () {
+                      flushbarFactory(
+                          context: context,
+                          messageString:
+                              "Patiente jusqu'à demain pour découvrir un nouveau mot !");
+                    },
+                  ));
   }
 
   void deleteAllSelected() {
@@ -248,6 +256,11 @@ class HistoryState extends State<History> {
   }
 
   void addNewWord() async {
+    // display progress indicator
+    setState(() {
+      _isAddingNewWord = true;
+    });
+
     // get documents
     QuerySnapshot querySnapshot =
         await Firestore.instance.collection('dictionary').getDocuments();
@@ -260,9 +273,7 @@ class HistoryState extends State<History> {
 
     // choose a word that has not been chosen yet
     // to do so, remove elements which are in db
-    print('loadMore GET start');
     var pickedWords = await helper.getAlreadyPickedWords();
-    print('loadMore GET end, already picked words: $pickedWords');
     documentsList.removeWhere((item) => pickedWords.contains(item[columnName]));
 
     // choose randomly in the remainder
@@ -307,6 +318,11 @@ class HistoryState extends State<History> {
 
       // store date
       storeLastDayAddedWord();
+
+      // stop progress indicator
+      setState(() {
+        _isAddingNewWord = false;
+      });
 
       // to new route
       _pushToWordInfo(newWord);
@@ -393,19 +409,15 @@ class HistoryState extends State<History> {
         as WordInfoToHistoryArguments;
 
     if (backArgs.toDelete) {
-      print('will delete ${word.name}');
       _deleteWord(word);
     } else {
-      print('returned from wordpage with ${backArgs.isFavorite}');
       if (backArgs.isFavorite && !word.isFavorite) {
-        print('adding to favs');
         setState(() {
           _favorites.add(word.name);
           _favorites.sort();
           word.isFavorite = true;
         });
       } else if (!backArgs.isFavorite && word.isFavorite) {
-        print('removing from favs');
         setState(() {
           _favorites.remove(word.name);
           word.isFavorite = false;
@@ -426,9 +438,7 @@ class HistoryState extends State<History> {
               word.isFavorite = true;
             }
           });
-          print('calling update favorite');
           helper.updateFavoriteWord(word.name, word.isFavorite);
-          print('call returned');
         },
         icon: Icon(
           word.isFavorite ? Icons.favorite : Icons.favorite_border,
@@ -518,7 +528,6 @@ class HistoryState extends State<History> {
   }
 
   Future _getMoreWords() async {
-    print('getNextWord start');
     if (!_isRequestingMoreHistoryWords) {
       // showing progress indicator
       setState(() {
@@ -560,8 +569,6 @@ class HistoryState extends State<History> {
         });
       }
     }
-
-    print('getNextWord end');
   }
 
 // go to a page listing favorite words
@@ -623,7 +630,6 @@ class _WordTileState extends State<WordTile> {
   }
 
   void _selectWord(select) {
-    print('select word called');
     if (select) {
       setState(() {
         isSelected = true;
