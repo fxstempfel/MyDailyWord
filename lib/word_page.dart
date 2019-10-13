@@ -26,8 +26,6 @@ class WordInfoPageState extends State<WordInfoPage> {
   String wordName;
   bool isFavorite;
 
-  // TODO animate transitions
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -171,7 +169,7 @@ class WordInfoPageState extends State<WordInfoPage> {
                               .copyWith(fontWeight: FontWeight.bold)),
                       TextSpan(
                           text:
-                              " dans la base de données. Cela est probablement dû à sa suppression. Tu n'auras plus accès à sa définition, à moins qu'il soit à nouveau ajouté. Veux-tu le supprimer de tes mots ?",
+                              " dans la base de données. Cela est probablement dû à sa suppression. Tu n'auras plus accès à sa définition, à moins qu'il soit à nouveau ajouté. Veux-tu le supprimer de tes mots ? Il sera remplacé par un nouveau !",
                           style: Theme.of(context).textTheme.body2)
                     ]),
               ))),
@@ -193,7 +191,7 @@ class WordInfoPageState extends State<WordInfoPage> {
                   Navigator.of(context)
                       .pop(WordInfoToHistoryArguments.toDelete());
                 },
-                child: Text('SUPPRIMER',
+                child: Text('REMPLACER',
                     style: Theme.of(context)
                         .textTheme
                         .button

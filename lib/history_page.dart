@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:feature_discovery/feature_discovery.dart';
 import 'package:flutter/material.dart';
+//import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +19,8 @@ class History extends StatefulWidget {
   HistoryState createState() => HistoryState();
 }
 
+// TODO upload all words
+
 // TODO sometimes black screen when back button
 // TODO what if no internet connection?
 class HistoryState extends State<History> {
@@ -25,24 +28,27 @@ class HistoryState extends State<History> {
   static const tagFab = 'fab_add_word';
   static const lastDayAddedWordKey = 'last_day_added_word';
 
-  final HistoryDatabaseHelper helper = HistoryDatabaseHelper();
+  //final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  final helper = HistoryDatabaseHelper();
 
   ScrollController _scrollController = ScrollController();
-  List<HistoryWord> _history = <HistoryWord>[];
-  int _dateOfLastWord;
-  bool _isRequestingMoreHistoryWords = false;
-  List<String> _favorites = <String>[];
+  List<HistoryWord> history = <HistoryWord>[];
   List<HistoryWord> listSelected = <HistoryWord>[];
-  bool _canCallFeatureDiscovery;
+  List<String> _favorites = <String>[];
+  int _dateOfLastWord;
   bool _canAddNewWord = false;
+  bool _canCallFeatureDiscovery;
   bool _isAddingNewWord = false;
+  bool _isRequestingMoreHistoryWords = false;
 
   @override
   void initState() {
     super.initState();
     initializeDateFormatting('fr');
 
-    _dateOfLastWord = DateTime.now().millisecondsSinceEpoch;
+    _dateOfLastWord = DateTime
+        .now()
+        .millisecondsSinceEpoch;
     _getMoreWords();
     _scrollController.addListener(() {
       if (_scrollController.position.pixels ==
@@ -53,6 +59,26 @@ class HistoryState extends State<History> {
     _canCallFeatureDiscovery = false;
 
     checkCanAddNewWord();
+
+    // initialize notifications
+    """var initializationSettingsAndroid = AndroidInitializationSettings('assets/images/icon.png');
+    var initializationSettingsIOS = IOSInitializationSettings(onDidReceiveLocalNotification: null);
+    var initializationSettings = InitializationSettings(initializationSettingsAndroid, initializationSettingsIOS);
+    flutterLocalNotificationsPlugin.initialize(initializationSettings, onSelectNotification: null);
+
+    var androidPlatformChannelSpecifics = AndroidNotificationDetails(
+        'repeatDailyAtTime channel id', 'repeatDailyAtTime channel name',
+        'repeatDailyAtTime description');
+    var iOSPlatformChannelSpecifics = IOSNotificationDetails();
+    var platformChannelSpecifics = NotificationDetails(androidPlatformChannelSpecifics, iOSPlatformChannelSpecifics);
+    var time = Time(12, 16);
+    print('here');
+    flutterLocalNotificationsPlugin.showDailyAtTime(
+        0,
+        'Daily Word',
+        "Ne rate pas l'occasion d'apprendre un nouveau mot aujourd'hui !",
+        time,
+        platformChannelSpecifics);""";
   }
 
   Future<DateTime> getLastDayAddedWord() async {
@@ -96,11 +122,11 @@ class HistoryState extends State<History> {
     WidgetsBinding.instance.addPostFrameCallback((duration) {
       if (_canAddNewWord) {
         if (_canCallFeatureDiscovery) {
-          if (_history.isEmpty) {
+          if (history.isEmpty) {
             FeatureDiscovery.discoverFeatures(context, const <String>[
               tagFab
             ] // Feature ids for every feature that you want to showcase in order},
-                );
+            );
           } else {
             FeatureDiscovery.dismiss(context);
           }
@@ -115,84 +141,85 @@ class HistoryState extends State<History> {
     return Scaffold(
         appBar: listSelected.isEmpty
             ? AppBar(
-                title: Text(
-                  'Mes mots',
-                ),
-                actions: <Widget>[
-                  IconButton(
-                    icon: Image.asset('assets/images/list_favorites.png'),
-                    onPressed: _toFavorites,
-                  )
-                ],
-              )
+          title: Text(
+            'Mes mots',
+          ),
+          actions: <Widget>[
+            IconButton(
+              icon: Image.asset('assets/images/list_favorites.png'),
+              onPressed: _toFavorites,
+            )
+          ],
+        )
             : AppBar(
-                backgroundColor: colorSecondary,
-                leading: IconButton(
-                  icon: Icon(Icons.close, color: colorAccentSecond),
-                  onPressed: () {
-                    setState(() {
-                      listSelected = [];
-                    });
-                  },
-                ),
-                title: Text(
-                  nbSelectedWords == 1
-                      ? '1 mot sélectionné'
-                      : '$nbSelectedWords mots sélectionnés',
-                  style: TextStyle(color: colorAccentSecond),
-                ),
-                actions: <Widget>[
-                  IconButton(
-                    icon: Icon(Icons.delete, color: colorAccentSecond),
-                    onPressed: deleteAllSelected,
-                  )
-                ],
-              ),
+          backgroundColor: colorSecondary,
+          leading: IconButton(
+            icon: Icon(Icons.close, color: colorAccentSecond),
+            onPressed: () {
+              setState(() {
+                listSelected = [];
+              });
+            },
+          ),
+          title: Text(
+            nbSelectedWords == 1
+                ? '1 mot sélectionné'
+                : '$nbSelectedWords mots sélectionnés',
+            style: TextStyle(color: colorAccentSecond),
+          ),
+          actions: <Widget>[
+            IconButton(
+              icon: Icon(Icons.delete, color: colorAccentSecond),
+              onPressed: deleteAllSelected,
+            )
+          ],
+        ),
         body: _buildListViewHistory(),
         floatingActionButton: _isAddingNewWord
             ? FloatingActionButton(
-                backgroundColor: colorAccent,
-                child: SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.8,
-                      valueColor: AlwaysStoppedAnimation<Color>(colorSecondary),
-                    )),
-                onPressed: null)
+            backgroundColor: colorAccent,
+            child: SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.8,
+                  valueColor: AlwaysStoppedAnimation<Color>(colorSecondary),
+                )),
+            onPressed: null)
             : _canAddNewWord
-                ? DescribedFeatureOverlay(
-                    featureId: tagFab,
-                    backgroundColor: colorAccentSecond,
-                    textColor: colorSecondary,
-                    tapTarget: Icon(Icons.add),
-                    title: Text('Ajouter des mots'),
-                    description: Text(
-                        "Tu n'as pas encore de mots. Pour en obtenir, utilise le bouton \"plus\". Tu as droit à un mot par jour."),
-                    child: FloatingActionButton(
-                      child: Icon(Icons.add),
-                      foregroundColor: colorSecondary,
-                      onPressed: addNewWord,
-                    ),
-                  )
-                : FloatingActionButton(
-                    child: Icon(Icons.add),
-                    foregroundColor: colorSecondary,
-                    backgroundColor: colorGrayAccent,
-                    onPressed: () {
-                      flushbarFactory(
-                          context: context,
-                          messageString:
-                              "Patiente jusqu'à demain pour découvrir un nouveau mot !");
-                    },
-                  ));
+            ? DescribedFeatureOverlay(
+          featureId: tagFab,
+          backgroundColor: colorAccentSecond,
+          textColor: colorSecondary,
+          tapTarget: Icon(Icons.add),
+          title: Text('Ajouter des mots'),
+          description: Text(
+              "Tu n'as pas encore de mots. Pour en obtenir, utilise le bouton \"plus\". Tu as droit à un mot par jour."),
+          child: FloatingActionButton(
+            child: Icon(Icons.add),
+            foregroundColor: colorSecondary,
+            onPressed: addNewWord,
+          ),
+        )
+            : FloatingActionButton(
+          child: Icon(Icons.add),
+          foregroundColor: colorSecondary,
+          backgroundColor: colorGrayAccent,
+          onPressed: () {
+            flushbarFactory(
+                context: context,
+                messageString:
+                "Patiente jusqu'à demain pour découvrir un nouveau mot !");
+          },
+        ));
   }
 
   void deleteAllSelected() {
     var nbSelectedWords = listSelected.length;
     showDialog(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (context) =>
+            AlertDialog(
               title: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
@@ -211,7 +238,8 @@ class HistoryState extends State<History> {
                   ]),
               content: Text(
                   nbSelectedWords == 1
-                      ? "Es-tu sûr·e de vouloir supprimer ${listSelected[0].name} ?"
+                      ? "Es-tu sûr·e de vouloir supprimer ${listSelected[0]
+                      .name} ?"
                       : "Es-tu sûr·e de vouloir supprimer $nbSelectedWords mots ?",
                   style: TextStyle(
                       color: colorTextOnPrimary,
@@ -263,11 +291,11 @@ class HistoryState extends State<History> {
 
     // get documents
     QuerySnapshot querySnapshot =
-        await Firestore.instance.collection('dictionary').getDocuments();
+    await Firestore.instance.collection('dictionary').getDocuments();
 
     // make a List of words out of them
     List<Map<dynamic, dynamic>> documentsList =
-        querySnapshot.documents.map((DocumentSnapshot snapshot) {
+    querySnapshot.documents.map((DocumentSnapshot snapshot) {
       return snapshot.data;
     }).toList();
 
@@ -305,11 +333,9 @@ class HistoryState extends State<History> {
       };
       HistoryWord newWord = HistoryWord.fromMap(mapNewWord);
 
-      // TODO animate when searching the new word => popup with CircularProgress ?
-
       // add it to history and set state to refresh view
       setState(() {
-        _history.insert(0, newWord);
+        history.insert(0, newWord);
         _canAddNewWord = false;
       });
 
@@ -319,55 +345,60 @@ class HistoryState extends State<History> {
       // store date
       storeLastDayAddedWord();
 
+      // to new route
+      _pushToWordInfo(newWord);
+
       // stop progress indicator
       setState(() {
         _isAddingNewWord = false;
       });
-
-      // to new route
-      _pushToWordInfo(newWord);
     }
   }
 
-  Widget _buildListViewHistory() => _history.isEmpty
-      ? Column(children: <Widget>[
-          Expanded(
-              child: Center(
-                  child: Text(
-                "C'est bien triste sans mots...",
-                style: Theme.of(context).textTheme.title,
-              )),
-              flex: 2),
-          Expanded(
-            child: Container(),
-            flex: 3,
-          )
-        ])
-      : ListView.builder(
-          controller: _scrollController,
-          itemCount: _isRequestingMoreHistoryWords
-              ? 2 * _history.length + 1
-              : 2 * _history.length,
-          itemBuilder: (context, index) {
-            if (index.isOdd) {
-              return Divider(
-                height: 0,
-              );
-            } else if (index == 2 * _history.length) {
-              if (_isRequestingMoreHistoryWords) {
-                return _buildProgressIndicator();
-              } else {
-                return Divider(
-                  height: 0.0,
-                );
-              }
+  Widget _buildListViewHistory() =>
+      history.isEmpty
+          ? Column(children: <Widget>[
+        Expanded(
+            child: Center(
+                child: Text(
+                  "C'est bien triste sans mots...",
+                  style: Theme
+                      .of(context)
+                      .textTheme
+                      .title,
+                )),
+            flex: 2),
+        Expanded(
+          child: Container(),
+          flex: 3,
+        )
+      ])
+          : ListView.builder(
+        controller: _scrollController,
+        itemCount: _isRequestingMoreHistoryWords
+            ? 2 * history.length + 1
+            : 2 * history.length,
+        itemBuilder: (context, index) {
+          if (index.isOdd) {
+            return Divider(
+              height: 0,
+            );
+          } else if (index == 2 * history.length) {
+            if (_isRequestingMoreHistoryWords) {
+              return _buildProgressIndicator();
             } else {
-              return _buildRow(index ~/ 2);
+              return Divider(
+                height: 0.0,
+              );
             }
-          },
-        );
+          } else {
+            return _buildRow(index ~/ 2);
+          }
+        },
+      );
 
-  Widget _buildProgressIndicator() => Padding(
+  Widget _buildProgressIndicator() =>
+      Padding(
         padding: const EdgeInsets.all(8.0),
         child: Center(
           child: Opacity(
@@ -382,7 +413,7 @@ class HistoryState extends State<History> {
   Widget _buildRow(int index) {
     final dateNow = DateTime.now();
     final dateToday = DateTime(dateNow.year, dateNow.month, dateNow.day);
-    var word = _history[index];
+    var word = history[index];
     var dateWord = DateTime.fromMillisecondsSinceEpoch(word.dateChosen);
     var difference = dateToday.difference(dateWord);
 
@@ -405,11 +436,12 @@ class HistoryState extends State<History> {
 
   void _pushToWordInfo(HistoryWord word) async {
     var backArgs = await Navigator.of(context).pushNamed(WordInfoPage.routeName,
-            arguments: HistoryToWordInfoArguments(word.name, word.isFavorite))
-        as WordInfoToHistoryArguments;
+        arguments: HistoryToWordInfoArguments(word.name, word.isFavorite))
+    as WordInfoToHistoryArguments;
 
     if (backArgs.toDelete) {
       _deleteWord(word);
+      addNewWord();
     } else {
       if (backArgs.isFavorite && !word.isFavorite) {
         setState(() {
@@ -426,7 +458,8 @@ class HistoryState extends State<History> {
     }
   }
 
-  Widget _saveFavoriteButton(HistoryWord word, {Color color}) => IconButton(
+  Widget _saveFavoriteButton(HistoryWord word, {Color color}) =>
+      IconButton(
         onPressed: () async {
           setState(() {
             if (word.isFavorite) {
@@ -446,7 +479,8 @@ class HistoryState extends State<History> {
         ),
       );
 
-  Widget _deleteFromHistoryButton(HistoryWord word) => IconButton(
+  Widget _deleteFromHistoryButton(HistoryWord word) =>
+      IconButton(
         icon: Icon(
           Icons.delete,
           color: colorPrimary,
@@ -458,12 +492,14 @@ class HistoryState extends State<History> {
 
   void _showDialogDelete(HistoryWord word) {
     var contentText = (word.isFavorite)
-        ? "Es-tu sûr·e de vouloir supprimer ${word.name} ?\nC'est un de tes favoris !"
+        ? "Es-tu sûr·e de vouloir supprimer ${word
+        .name} ?\nC'est un de tes favoris !"
         : "Es-tu sûr·e de vouloir supprimer ${word.name} ?";
 
     showDialog(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (context) =>
+            AlertDialog(
               title: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
@@ -519,7 +555,7 @@ class HistoryState extends State<History> {
   Future _deleteWord(HistoryWord word) async {
     // first, remove from history
     setState(() {
-      _history.remove(word);
+      history.remove(word);
       _favorites.remove(word.name);
     });
 
@@ -536,12 +572,12 @@ class HistoryState extends State<History> {
 
       // get new words
       List<HistoryWord> _newWords =
-          (await helper.getMostRecentWordsAfter(chunkSize, _dateOfLastWord));
+      (await helper.getMostRecentWordsAfter(chunkSize, _dateOfLastWord));
 
       // add them to history
       if (_newWords == null) {
         // unless none have been found. In this case, scroll up to hide last ListView item (ie progress indicator)
-        if (_history.isNotEmpty) {
+        if (history.isNotEmpty) {
           // scroller does not exist if in no scroller view has been initialized
           double edge = 50.0;
           double offsetFromBottom = _scrollController.position.maxScrollExtent -
@@ -559,7 +595,7 @@ class HistoryState extends State<History> {
         });
       } else {
         setState(() {
-          _history.addAll(_newWords);
+          history.addAll(_newWords);
           _favorites.addAll(_newWords
               .where((word) => word.isFavorite)
               .map((word) => word.name));
@@ -576,14 +612,14 @@ class HistoryState extends State<History> {
     if (_favorites.isNotEmpty) {
       // go to FavoritesPage
       var backArgs = await Navigator.of(context).pushNamed(
-              FavoritesPage.routeName,
-              arguments: HistoryToFavoritesArguments(_favorites))
-          as FavoritesToHistoryArguments;
+          FavoritesPage.routeName,
+          arguments: HistoryToFavoritesArguments(_favorites))
+      as FavoritesToHistoryArguments;
 
       // delete words that have been deleted (can occur when navigating to word page, if the word is not found in firebase)
       backArgs.toDeleteFromHistoryNames.forEach((wordName) {
         _deleteWord(
-            _history.where((word) => word.name == wordName).toList()[0]);
+            history.where((word) => word.name == wordName).toList()[0]);
       });
 
       // update _favorites (some words might have been deleted)
@@ -595,7 +631,7 @@ class HistoryState extends State<History> {
 
       // update HistoryWords accordingly
       setState(() {
-        _history.forEach((word) {
+        history.forEach((word) {
           if (!_favorites.contains(word.name) && word.isFavorite) {
             word.isFavorite = false;
           }
@@ -664,21 +700,29 @@ class _WordTileState extends State<WordTile> {
             child: Text(
               widget.dateText,
               style: isSelected
-                  ? Theme.of(context)
-                      .textTheme
-                      .subtitle
-                      .copyWith(color: colorSecondary)
-                  : Theme.of(context).textTheme.subtitle,
+                  ? Theme
+                  .of(context)
+                  .textTheme
+                  .subtitle
+                  .copyWith(color: colorSecondary)
+                  : Theme
+                  .of(context)
+                  .textTheme
+                  .subtitle,
             ),
           ),
           title: Text(
             widget.word.name,
             style: isSelected
-                ? Theme.of(context)
-                    .textTheme
-                    .title
-                    .copyWith(color: colorSecondary)
-                : Theme.of(context).textTheme.title,
+                ? Theme
+                .of(context)
+                .textTheme
+                .title
+                .copyWith(color: colorSecondary)
+                : Theme
+                .of(context)
+                .textTheme
+                .title,
           ),
           trailing: Row(
             children: <Widget>[
@@ -686,9 +730,9 @@ class _WordTileState extends State<WordTile> {
                   color: isSelected ? colorSecondary : null),
               isSelected
                   ? IconButton(
-                      icon: Icon(Icons.delete, color: colorAccentSecond),
-                      onPressed: () {},
-                    )
+                icon: Icon(Icons.delete, color: colorAccentSecond),
+                onPressed: () {},
+              )
                   : widget.historyState._deleteFromHistoryButton(widget.word),
             ],
             mainAxisSize: MainAxisSize.min,
