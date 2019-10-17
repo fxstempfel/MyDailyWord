@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:feature_discovery/feature_discovery.dart';
 import 'package:flutter/material.dart';
-//import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,10 +25,12 @@ class History extends StatefulWidget {
 // TODO what if no internet connection?
 class HistoryState extends State<History> {
   static const chunkSize = 10;
+  static const notificationId = 0;
+  static const notificationChannelId = '0';
   static const tagFab = 'fab_add_word';
   static const lastDayAddedWordKey = 'last_day_added_word';
 
-  //final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
   final helper = HistoryDatabaseHelper();
 
   ScrollController _scrollController = ScrollController();
@@ -61,24 +63,24 @@ class HistoryState extends State<History> {
     checkCanAddNewWord();
 
     // initialize notifications
-    """var initializationSettingsAndroid = AndroidInitializationSettings('assets/images/icon.png');
+    var initializationSettingsAndroid = AndroidInitializationSettings('app_icon');
     var initializationSettingsIOS = IOSInitializationSettings(onDidReceiveLocalNotification: null);
     var initializationSettings = InitializationSettings(initializationSettingsAndroid, initializationSettingsIOS);
     flutterLocalNotificationsPlugin.initialize(initializationSettings, onSelectNotification: null);
 
     var androidPlatformChannelSpecifics = AndroidNotificationDetails(
-        'repeatDailyAtTime channel id', 'repeatDailyAtTime channel name',
-        'repeatDailyAtTime description');
+        notificationChannelId, 'Rappel',
+        'Rappel régulier pour ne pas oublier de découvrir des mots');
     var iOSPlatformChannelSpecifics = IOSNotificationDetails();
     var platformChannelSpecifics = NotificationDetails(androidPlatformChannelSpecifics, iOSPlatformChannelSpecifics);
-    var time = Time(12, 16);
-    print('here');
+    // TODO make it settable
+    final time = Time(20, 50);
     flutterLocalNotificationsPlugin.showDailyAtTime(
-        0,
+        notificationId,
         'Daily Word',
         "Ne rate pas l'occasion d'apprendre un nouveau mot aujourd'hui !",
         time,
-        platformChannelSpecifics);""";
+        platformChannelSpecifics);
   }
 
   Future<DateTime> getLastDayAddedWord() async {
@@ -107,6 +109,9 @@ class HistoryState extends State<History> {
       setState(() {
         _canAddNewWord = false;
       });
+
+      // cancel notification, not relevant if cannot add word
+      flutterLocalNotificationsPlugin.cancel(notificationId);
     }
   }
 
@@ -352,6 +357,9 @@ class HistoryState extends State<History> {
       setState(() {
         _isAddingNewWord = false;
       });
+
+      // cancel notification
+      flutterLocalNotificationsPlugin.cancel(notificationId);
     }
   }
 
