@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flushbar/flushbar.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const colorPrimary = Color(0xFFE88229);
 const colorSecondary = Color(0xFFFFFEE0);
@@ -9,7 +10,41 @@ const colorAccent = Color(0xFF992623);
 const colorAccentSecond = Color(0xFF292B66);
 const colorGrayAccent = Color(0xFF8E5E5C);
 const colorTextOnPrimary = Color(0xFF3A3335);
+const colorTextOnPrimaryGreyed = Color(0xFF7C6D72);
 const colorTextOnAccent = Color(0xFFFFFEE0);
+
+const notificationHours = 'notificationHours';
+const notificationMinutes = 'notificationMinutes';
+const notificationIsEnabled = 'notificationIsSet';
+
+enum PopupOptions { notifications }
+
+Future<TimeOfDay> getNotificationTime() async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  var hours = prefs.getInt(notificationHours);
+  var minutes = prefs.getInt(notificationMinutes);
+  if (hours == null || minutes == null) {
+    return null;
+  } else {
+    return TimeOfDay(hour: hours, minute: minutes);
+  }
+}
+
+Future<bool> getNotificationIsEnabled() async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  return prefs.getBool(notificationIsEnabled);
+}
+
+Future setNotificationTime(int hours, int minutes) async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  prefs.setInt(notificationHours, hours);
+  prefs.setInt(notificationMinutes, minutes);
+}
+
+Future setNotificationIsEnabled(bool enabled) async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  prefs.setBool(notificationIsEnabled, enabled);
+}
 
 void flushbarFactory(
     {@required context,
@@ -79,4 +114,12 @@ class FavoritesToHistoryArguments {
 
   FavoritesToHistoryArguments(
       this.favoritesNames, this.toDeleteFromHistoryNames);
+}
+
+class HistoryToNotificationsArguments {
+  bool notificationIsEnabled;
+  TimeOfDay notificationTime;
+
+  HistoryToNotificationsArguments(
+      this.notificationIsEnabled, this.notificationTime);
 }

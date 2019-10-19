@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'favorites_page.dart';
 import 'history_page.dart';
+import 'notifications_page.dart';
 import 'utils.dart';
 import 'word_page.dart';
 
@@ -20,7 +21,8 @@ class DailyWordApp extends StatelessWidget {
         initialRoute: '/',
         routes: {
           WordInfoPage.routeName: (context) => WordInfoPage(),
-          FavoritesPage.routeName: (context) => FavoritesPage()
+          FavoritesPage.routeName: (context) => FavoritesPage(),
+          NotificationsPage.routeName: (context) => NotificationsPage(),
         },
         home: Scaffold(
           body: Center(
