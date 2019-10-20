@@ -70,7 +70,8 @@ class HistoryState extends State<History> {
     // check value persistently stored
     if (fromStorage) {
       _isNotificationEnabled = await getNotificationIsEnabled() ?? true;
-      notificationTime = await getNotificationTime() ?? TimeOfDay(hour: 12, minute: 0);
+      notificationTime =
+          await getNotificationTime() ?? TimeOfDay(hour: 12, minute: 0);
     }
 
     // initialize notifications
@@ -184,20 +185,16 @@ class HistoryState extends State<History> {
                       itemBuilder: (context) => <PopupMenuEntry<PopupOptions>>[
                             PopupMenuItem<PopupOptions>(
                                 value: PopupOptions.notifications,
-                                child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceEvenly,
-                                    children: <Widget>[
-                                      Icon(
-                                        Icons.settings,
-                                        color: colorAccent,
-                                      ),
-                                      Text(
-                                        'Réglages',
-                                        style:
-                                            Theme.of(context).textTheme.body2,
-                                      )
-                                    ]))
+                                child: ListTile(
+                                    dense: true,
+                                    leading: Icon(
+                                      Icons.settings,
+                                      color: colorPrimary,
+                                    ),
+                                    title: Text(
+                                      'Réglages',
+                                      style: Theme.of(context).textTheme.title,
+                                    )))
                           ])
                 ],
               )

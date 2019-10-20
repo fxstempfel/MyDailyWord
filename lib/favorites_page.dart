@@ -48,7 +48,7 @@ class FavoritesPageState extends State<FavoritesPage> {
       onWillPop: () async {
         Navigator.of(context).pop(
             FavoritesToHistoryArguments(_favoritesNames, _toDeleteFromHistory));
-        return false;
+        return Future.value(false);
       });
 
   Widget _buildFavoriteTile(int index, BuildContext context) {

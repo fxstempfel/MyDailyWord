@@ -50,7 +50,7 @@ class NotificationsPageState extends State<NotificationsPage> {
                         notificationIsEnabled, notificationTime))),
             title: Text('Réglages')),
         body: ListView.builder(
-            itemCount: 3,
+            itemCount: 2,
             itemBuilder: (context, index) {
               switch (index) {
                 case 0:
@@ -66,17 +66,17 @@ class NotificationsPageState extends State<NotificationsPage> {
                         style: Theme.of(context).textTheme.title,
                       ));
                 case 1:
-                  return Divider();
-                case 2:
                   return NotificationTimeTile(this);
                 default:
                   return null;
               }
             }),
       ),
-      onWillPop: () async => Navigator.of(context).pop(
-          HistoryToNotificationsArguments(
-              notificationIsEnabled, notificationTime)));
+      onWillPop: () async {
+        Navigator.of(context).pop(HistoryToNotificationsArguments(
+            notificationIsEnabled, notificationTime));
+        return Future.value(false);
+      });
 }
 
 class NotificationTimeTile extends StatefulWidget {
@@ -95,13 +95,13 @@ class NotificationTimeTileState extends State<NotificationTimeTile> {
         ? 'Tous les jours à'
         : 'Jamais';
     var hourText = widget.notificationsPageState.notificationTime == null
-        ? '00:00'
-        : '${widget.notificationsPageState.notificationTime.hour.toString().padLeft(2, '0')}:${widget.notificationsPageState.notificationTime.minute.toString().padLeft(2, '0')}';
+        ? '00:00 '
+        : '${widget.notificationsPageState.notificationTime.hour.toString().padLeft(2, '0')}:${widget.notificationsPageState.notificationTime.minute.toString().padLeft(2, '0')} ';
     var style = widget.notificationsPageState.notificationIsEnabled
-        ? Theme.of(context).textTheme.body2
+        ? Theme.of(context).textTheme.title
         : Theme.of(context)
             .textTheme
-            .body2
+            .title
             .copyWith(color: colorTextOnPrimaryGreyed);
     return SwitchListTile(
         activeColor: colorAccent,
@@ -121,14 +121,23 @@ class NotificationTimeTileState extends State<NotificationTimeTile> {
               style: style,
             ),
             widget.notificationsPageState.notificationIsEnabled
-                ? FlatButton(
-                    child: Text(
-                      hourText,
-                      style: style.copyWith(
-                          color: colorAccent, fontWeight: FontWeight.bold),
-                    ),
-                    onPressed: _pickTime,
-                  )
+                ? ButtonTheme(
+                    minWidth: 64,
+                    child: FlatButton(
+                      padding: EdgeInsets.symmetric(horizontal: 4),
+                      child: Row(children: <Widget>[
+                        Text(
+                          hourText,
+                          style: style.copyWith(
+                              color: colorAccent, fontWeight: FontWeight.bold),
+                        ),
+                        Icon(
+                          Icons.access_time,
+                          color: colorAccent,
+                        )
+                      ]),
+                      onPressed: _pickTime,
+                    ))
                 : null
           ].where((e) => e != null).toList(),
         ));
@@ -141,9 +150,10 @@ class NotificationTimeTileState extends State<NotificationTimeTile> {
             TimeOfDay(hour: 12, minute: 0),
         context: context,
         builder: (context, widget) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-          child: widget,
-        ));
+              data:
+                  MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+              child: widget,
+            ));
     if (selectedTime != null) {
       setState(() {
         widget.notificationsPageState.notificationTime = selectedTime;
