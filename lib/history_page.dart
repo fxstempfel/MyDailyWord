@@ -44,6 +44,7 @@ class HistoryState extends State<History> {
   bool _isAddingNewWord = false;
   bool _isRequestingMoreHistoryWords = false;
   bool _isNotificationEnabled;
+  bool _isOnOtherPage = false;
   TimeOfDay notificationTime;
 
   @override
@@ -60,8 +61,9 @@ class HistoryState extends State<History> {
       }
     });
     _canCallFeatureDiscovery = false;
+    _isOnOtherPage = false;
 
-    checkCanAddNewWord();
+    _checkCanAddNewWord();
 
     _setupNotifications(fromStorage: true);
   }
@@ -94,6 +96,7 @@ class HistoryState extends State<History> {
       var platformChannelSpecifics = NotificationDetails(
           androidPlatformChannelSpecifics, iOSPlatformChannelSpecifics);
       final time = Time(notificationTime.hour, notificationTime.minute);
+      print('set notification to ${time.toString()}');
       flutterLocalNotificationsPlugin.showDailyAtTime(
           notificationId,
           'Daily Word',
@@ -118,7 +121,7 @@ class HistoryState extends State<History> {
     prefs.setInt(lastDayAddedWordKey, dateToday.millisecondsSinceEpoch);
   }
 
-  Future checkCanAddNewWord() async {
+  Future _checkCanAddNewWord() async {
     final dateNow = DateTime.now();
     final dateToday = DateTime(dateNow.year, dateNow.month, dateNow.day);
     var lastDayAddedWord = await getLastDayAddedWord();
@@ -145,19 +148,22 @@ class HistoryState extends State<History> {
 
   @override
   Widget build(BuildContext context) {
+    print('exec build');
     // has a word been added today yet?
-    checkCanAddNewWord();
+    _checkCanAddNewWord();
 
     // show feature discovery if no word in history and no word added today
     WidgetsBinding.instance.addPostFrameCallback((duration) {
       if (_canAddNewWord) {
         if (_canCallFeatureDiscovery) {
-          if (history.isEmpty) {
+          if (history.isEmpty && !_isOnOtherPage) {
+            print('feature discovery');
             FeatureDiscovery.discoverFeatures(context, const <String>[
               tagFab
             ] // Feature ids for every feature that you want to showcase in order},
                 );
           } else {
+            print('dismiss');
             FeatureDiscovery.dismiss(context);
           }
         } else {
@@ -479,9 +485,11 @@ class HistoryState extends State<History> {
   }
 
   void _pushToWordInfo(HistoryWord word) async {
+    _isOnOtherPage = true;
     var backArgs = await Navigator.of(context).pushNamed(WordInfoPage.routeName,
             arguments: HistoryToWordInfoArguments(word.name, word.isFavorite))
         as WordInfoToHistoryArguments;
+    _isOnOtherPage = false;
 
     if (backArgs.toDelete) {
       _deleteWord(word);
@@ -650,11 +658,14 @@ class HistoryState extends State<History> {
   // go to a page listing favorite words
   void _toFavorites() async {
     if (_favorites.isNotEmpty) {
+      _isOnOtherPage = true;
+
       // go to FavoritesPage
       var backArgs = await Navigator.of(context).pushNamed(
               FavoritesPage.routeName,
               arguments: HistoryToFavoritesArguments(_favorites))
           as FavoritesToHistoryArguments;
+      _isOnOtherPage = false;
 
       // delete words that have been deleted (can occur when navigating to word page, if the word is not found in firebase)
       backArgs.toDeleteFromHistoryNames.forEach((wordName) {
@@ -686,11 +697,13 @@ class HistoryState extends State<History> {
   void _onPopupOptionSelected(PopupOptions optionValue) async {
     switch (optionValue) {
       case PopupOptions.notifications:
+        _isOnOtherPage = true;
         var args = await Navigator.pushNamed(
                 context, NotificationsPage.routeName,
                 arguments: HistoryToNotificationsArguments(
                     _isNotificationEnabled, notificationTime))
             as HistoryToNotificationsArguments;
+        _isOnOtherPage = false;
 
         notificationTime = args.notificationTime;
         _isNotificationEnabled = args.notificationIsEnabled;
