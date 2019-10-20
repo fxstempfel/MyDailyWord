@@ -98,14 +98,14 @@ class NotificationTimeTileState extends State<NotificationTimeTile> {
         ? '00:00 '
         : '${widget.notificationsPageState.notificationTime.hour.toString().padLeft(2, '0')}:${widget.notificationsPageState.notificationTime.minute.toString().padLeft(2, '0')} ';
     var style = widget.notificationsPageState.notificationIsEnabled
-        ? Theme.of(context).textTheme.title
+        ? Theme.of(context).textTheme.title.copyWith(fontSize: 18.0)
         : Theme.of(context)
             .textTheme
             .title
-            .copyWith(color: colorTextOnPrimaryGreyed);
+            .copyWith(color: colorTextOnPrimaryGreyed, fontSize: 18.0);
     return SwitchListTile(
         activeColor: colorAccent,
-        inactiveThumbColor: colorGrayAccent,
+        inactiveThumbColor: colorAccentGreyed,
         value: widget.notificationsPageState.notificationIsEnabled,
         onChanged: (newValue) {
           setState(() {

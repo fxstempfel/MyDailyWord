@@ -76,6 +76,7 @@ class HistoryState extends State<History> {
 
     // initialize notifications
     if (_isNotificationEnabled) {
+      // TODO change icon for dark background: provide two?
       var initializationSettingsAndroid =
           AndroidInitializationSettings('app_icon');
       var initializationSettingsIOS =
@@ -193,7 +194,7 @@ class HistoryState extends State<History> {
                                     ),
                                     title: Text(
                                       'Réglages',
-                                      style: Theme.of(context).textTheme.title,
+                                      style: Theme.of(context).textTheme.title.copyWith(fontSize: 18.0),
                                     )))
                           ])
                 ],
@@ -251,7 +252,7 @@ class HistoryState extends State<History> {
                 : FloatingActionButton(
                     child: Icon(Icons.add),
                     foregroundColor: colorSecondary,
-                    backgroundColor: colorGrayAccent,
+                    backgroundColor: colorAccentGreyed,
                     onPressed: () {
                       flushbarFactory(
                           context: context,
