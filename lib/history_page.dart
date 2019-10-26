@@ -20,8 +20,6 @@ class History extends StatefulWidget {
   HistoryState createState() => HistoryState();
 }
 
-// TODO upload all words
-
 // TODO sometimes black screen when back button
 // TODO what if no internet connection?
 class HistoryState extends State<History> {
@@ -78,7 +76,6 @@ class HistoryState extends State<History> {
 
     // initialize notifications
     if (_isNotificationEnabled) {
-      // TODO change icon for dark background: provide two?
       var initializationSettingsAndroid =
           AndroidInitializationSettings('app_icon');
       var initializationSettingsIOS =
@@ -96,7 +93,6 @@ class HistoryState extends State<History> {
       var platformChannelSpecifics = NotificationDetails(
           androidPlatformChannelSpecifics, iOSPlatformChannelSpecifics);
       final time = Time(notificationTime.hour, notificationTime.minute);
-      print('set notification to ${time.toString()}');
       flutterLocalNotificationsPlugin.showDailyAtTime(
           notificationId,
           'Daily Word',
@@ -148,7 +144,6 @@ class HistoryState extends State<History> {
 
   @override
   Widget build(BuildContext context) {
-    print('exec build');
     // has a word been added today yet?
     _checkCanAddNewWord();
 
@@ -157,13 +152,11 @@ class HistoryState extends State<History> {
       if (_canAddNewWord) {
         if (_canCallFeatureDiscovery) {
           if (history.isEmpty && !_isOnOtherPage) {
-            print('feature discovery');
             FeatureDiscovery.discoverFeatures(context, const <String>[
               tagFab
             ] // Feature ids for every feature that you want to showcase in order},
                 );
           } else {
-            print('dismiss');
             FeatureDiscovery.dismiss(context);
           }
         } else {
@@ -184,31 +177,21 @@ class HistoryState extends State<History> {
                 actions: <Widget>[
                   IconButton(
                     icon: Image.asset('assets/images/list_favorites.png'),
-                    onPressed: _toFavorites,
+                    onPressed: _pushToFavorites,
                   ),
-                  PopupMenuButton(
+                  IconButton(
+                    icon: Icon(
+                      Icons.settings,
                       color: colorSecondary,
-                      onSelected: _onPopupOptionSelected,
-                      itemBuilder: (context) => <PopupMenuEntry<PopupOptions>>[
-                            PopupMenuItem<PopupOptions>(
-                                value: PopupOptions.notifications,
-                                child: ListTile(
-                                    dense: true,
-                                    leading: Icon(
-                                      Icons.settings,
-                                      color: colorPrimary,
-                                    ),
-                                    title: Text(
-                                      'Réglages',
-                                      style: Theme.of(context).textTheme.title.copyWith(fontSize: 18.0),
-                                    )))
-                          ])
+                    ),
+                    onPressed: _pushToSettings,
+                  )
                 ],
               )
             : AppBar(
                 backgroundColor: colorSecondary,
                 leading: IconButton(
-                  icon: Icon(Icons.close, color: colorAccentSecond),
+                  icon: Icon(Icons.close, color: colorAccent),
                   onPressed: () {
                     setState(() {
                       listSelected = [];
@@ -219,11 +202,11 @@ class HistoryState extends State<History> {
                   nbSelectedWords == 1
                       ? '1 mot sélectionné'
                       : '$nbSelectedWords mots sélectionnés',
-                  style: TextStyle(color: colorAccentSecond),
+                  style: TextStyle(color: colorAccent),
                 ),
                 actions: <Widget>[
                   IconButton(
-                    icon: Icon(Icons.delete, color: colorAccentSecond),
+                    icon: Icon(Icons.delete, color: colorAccent),
                     onPressed: deleteAllSelected,
                   )
                 ],
@@ -243,7 +226,7 @@ class HistoryState extends State<History> {
             : _canAddNewWord
                 ? DescribedFeatureOverlay(
                     featureId: tagFab,
-                    backgroundColor: colorAccentSecond,
+                    backgroundColor: colorAccent,
                     textColor: colorSecondary,
                     tapTarget: Icon(Icons.add),
                     title: Text('Ajouter des mots'),
@@ -255,17 +238,19 @@ class HistoryState extends State<History> {
                       onPressed: addNewWord,
                     ),
                   )
-                : FloatingActionButton(
-                    child: Icon(Icons.add),
-                    foregroundColor: colorSecondary,
-                    backgroundColor: colorAccentGreyed,
-                    onPressed: () {
-                      flushbarFactory(
-                          context: context,
-                          messageString:
-                              "Patiente jusqu'à demain pour découvrir un nouveau mot !");
-                    },
-                  ));
+                : listSelected.isNotEmpty
+                    ? null
+                    : FloatingActionButton(
+                        child: Icon(Icons.add),
+                        foregroundColor: colorSecondary,
+                        backgroundColor: colorAccentGreyed,
+                        onPressed: () {
+                          flushbarFactory(
+                              context: context,
+                              messageString:
+                                  "Patiente jusqu'à demain pour découvrir un nouveau mot !");
+                        },
+                      ));
   }
 
   void deleteAllSelected() {
@@ -286,7 +271,7 @@ class HistoryState extends State<History> {
                           fontStyle: FontStyle.normal),
                     ),
                     Divider(
-                      color: colorAccentSecond,
+                      color: colorAccent,
                     )
                   ]),
               content: Text(
@@ -336,6 +321,7 @@ class HistoryState extends State<History> {
   }
 
   void addNewWord() async {
+    var start = DateTime.now().millisecondsSinceEpoch;
     // display progress indicator
     setState(() {
       _isAddingNewWord = true;
@@ -406,6 +392,7 @@ class HistoryState extends State<History> {
       });
 
       // cancel notification
+      // TODO this cancels the whole series
       flutterLocalNotificationsPlugin.cancel(notificationId);
     }
   }
@@ -559,7 +546,7 @@ class HistoryState extends State<History> {
                           fontStyle: FontStyle.normal),
                     ),
                     Divider(
-                      color: colorAccentSecond,
+                      color: colorAccent,
                     )
                   ]),
               content: Text(contentText,
@@ -656,7 +643,7 @@ class HistoryState extends State<History> {
   }
 
   // go to a page listing favorite words
-  void _toFavorites() async {
+  void _pushToFavorites() async {
     if (_favorites.isNotEmpty) {
       _isOnOtherPage = true;
 
@@ -694,22 +681,17 @@ class HistoryState extends State<History> {
     }
   }
 
-  void _onPopupOptionSelected(PopupOptions optionValue) async {
-    switch (optionValue) {
-      case PopupOptions.notifications:
-        _isOnOtherPage = true;
-        var args = await Navigator.pushNamed(
-                context, NotificationsPage.routeName,
-                arguments: HistoryToNotificationsArguments(
-                    _isNotificationEnabled, notificationTime))
-            as HistoryToNotificationsArguments;
-        _isOnOtherPage = false;
+  void _pushToSettings() async {
+    _isOnOtherPage = true;
+    var args = await Navigator.pushNamed(context, NotificationsPage.routeName,
+            arguments: HistoryToNotificationsArguments(
+                _isNotificationEnabled, notificationTime))
+        as HistoryToNotificationsArguments;
+    _isOnOtherPage = false;
 
-        notificationTime = args.notificationTime;
-        _isNotificationEnabled = args.notificationIsEnabled;
-        _setupNotifications();
-        break;
-    }
+    notificationTime = args.notificationTime;
+    _isNotificationEnabled = args.notificationIsEnabled;
+    _setupNotifications();
   }
 }
 
@@ -757,7 +739,7 @@ class _WordTileState extends State<WordTile> {
     return Container(
         padding: EdgeInsets.symmetric(vertical: 4),
         decoration: BoxDecoration(
-            color: isSelected ? colorAccentSecond : colorSecondary,
+            color: isSelected ? colorAccent : colorSecondary,
             border: BorderDirectional(
                 top: BorderSide(color: colorSecondary, width: 0.5),
                 bottom: BorderSide(color: colorSecondary, width: 0.5))),
@@ -790,7 +772,7 @@ class _WordTileState extends State<WordTile> {
                   color: isSelected ? colorSecondary : null),
               isSelected
                   ? IconButton(
-                      icon: Icon(Icons.delete, color: colorAccentSecond),
+                      icon: Icon(Icons.delete, color: colorAccent),
                       onPressed: () {},
                     )
                   : widget.historyState._deleteFromHistoryButton(widget.word),

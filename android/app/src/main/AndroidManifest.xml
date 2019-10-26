@@ -3,6 +3,8 @@
     package="com.fxstempfel.daily_word"
     tools:ignore="GoogleAppIndexingWarning">
 
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <!-- This is for android_alarm_manager package -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>

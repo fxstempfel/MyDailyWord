@@ -59,7 +59,7 @@ class NotificationsPageState extends State<NotificationsPage> {
                           EdgeInsets.symmetric(vertical: 8, horizontal: 24),
                       leading: Icon(
                         Icons.notifications,
-                        color: colorPrimary,
+                        color: colorAccent,
                       ),
                       title: Text(
                         'Notifications',
@@ -116,6 +116,7 @@ class NotificationTimeTileState extends State<NotificationTimeTile> {
         title: Row(
           mainAxisAlignment: MainAxisAlignment.start,
           children: <Widget>[
+            SizedBox(width: 12,),
             Text(
               leadingText,
               style: style,
@@ -129,11 +130,11 @@ class NotificationTimeTileState extends State<NotificationTimeTile> {
                         Text(
                           hourText,
                           style: style.copyWith(
-                              color: colorAccent, fontWeight: FontWeight.bold),
+                              color: colorPrimary, fontWeight: FontWeight.bold),
                         ),
                         Icon(
                           Icons.access_time,
-                          color: colorAccent,
+                          color: colorPrimary,
                         )
                       ]),
                       onPressed: _pickTime,

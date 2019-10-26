@@ -8,7 +8,6 @@ const colorPrimary = Color(0xFFE88229);
 const colorSecondary = Color(0xFFFFFEE0);
 const colorAccent = Color(0xFF992623);
 const colorAccentGreyed = Color(0xFF8E5E5C);
-const colorAccentSecond = Color(0xFF292B66);
 const colorTextOnPrimary = Color(0xFF3A3335);
 const colorTextOnPrimaryGreyed = Color(0xFF7C6D72);
 const colorTextOnAccent = Color(0xFFFFFEE0);
@@ -16,8 +15,6 @@ const colorTextOnAccent = Color(0xFFFFFEE0);
 const notificationHours = 'notificationHours';
 const notificationMinutes = 'notificationMinutes';
 const notificationIsEnabled = 'notificationIsSet';
-
-enum PopupOptions { notifications }
 
 Future<TimeOfDay> getNotificationTime() async {
   SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -62,7 +59,7 @@ void flushbarFactory(
                 fontSize: 18,
                 color: colorTextOnAccent,
                 fontStyle: FontStyle.normal)),
-    backgroundColor: colorAccentSecond,
+    backgroundColor: colorAccent,
     duration: Duration(seconds: 4),
     messageText: Text(messageString,
         style: TextStyle(
