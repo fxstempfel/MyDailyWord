@@ -24,7 +24,6 @@ class History extends StatefulWidget {
 // TODO what if no internet connection?
 class HistoryState extends State<History> {
   static const chunkSize = 10;
-  static const notificationId = 0;
   static const notificationChannelId = '0';
   static const tagFab = 'fab_add_word';
   static const lastDayAddedWordKey = 'last_day_added_word';
@@ -74,7 +73,10 @@ class HistoryState extends State<History> {
           await getNotificationTime() ?? TimeOfDay(hour: 12, minute: 0);
     }
 
-    // initialize notifications
+    // whether notifications are enabled or not, cancel all previous ones
+    flutterLocalNotificationsPlugin.cancelAll();
+
+    // if enabled, schedule them
     if (_isNotificationEnabled) {
       var initializationSettingsAndroid =
           AndroidInitializationSettings('app_icon');
@@ -88,19 +90,28 @@ class HistoryState extends State<History> {
       var androidPlatformChannelSpecifics = AndroidNotificationDetails(
           notificationChannelId,
           'Rappel',
-          'Rappeler périodiquement de ne pas oublier de découvrir des mots');
+          'Rappeler chaque jour de ne pas oublier de découvrir des mots');
       var iOSPlatformChannelSpecifics = IOSNotificationDetails();
       var platformChannelSpecifics = NotificationDetails(
           androidPlatformChannelSpecifics, iOSPlatformChannelSpecifics);
       final time = Time(notificationTime.hour, notificationTime.minute);
-      flutterLocalNotificationsPlugin.showDailyAtTime(
-          notificationId,
-          'Daily Word',
-          "Ne rate pas l'occasion d'apprendre un nouveau mot aujourd'hui !",
-          time,
-          platformChannelSpecifics);
-    } else {
-      flutterLocalNotificationsPlugin.cancel(notificationId);
+
+      final dateNow = DateTime.now();
+      final dateToday = DateTime(dateNow.year, dateNow.month, dateNow.day);
+
+      final notificationTimeIsAfterCurrentTime = dateNow.hour < time.hour || dateNow.hour == time.hour && dateNow.minute < time.minute;
+
+      // schedule a notification for the next 5 days
+      for (var i = (_canAddNewWord && notificationTimeIsAfterCurrentTime) ? 0 : 1; i <= 5; i++) {
+        var dateNotification = dateToday
+            .add(Duration(days: i, hours: time.hour, minutes: time.minute));
+        flutterLocalNotificationsPlugin.schedule(
+            dateToday.day + i,
+            'Daily Word',
+            "Ne rate pas l'occasion d'apprendre un nouveau mot aujourd'hui !",
+            dateNotification,
+            platformChannelSpecifics);
+      }
     }
   }
 
@@ -131,8 +142,8 @@ class HistoryState extends State<History> {
         _canAddNewWord = false;
       });
 
-      // cancel notification, not relevant if cannot add word
-      flutterLocalNotificationsPlugin.cancel(notificationId);
+      // cancel today's notification, not relevant if cannot add word
+      flutterLocalNotificationsPlugin.cancel(dateToday.day);
     }
   }
 
@@ -321,7 +332,6 @@ class HistoryState extends State<History> {
   }
 
   void addNewWord() async {
-    var start = DateTime.now().millisecondsSinceEpoch;
     // display progress indicator
     setState(() {
       _isAddingNewWord = true;
@@ -392,8 +402,7 @@ class HistoryState extends State<History> {
       });
 
       // cancel notification
-      // TODO this cancels the whole series
-      flutterLocalNotificationsPlugin.cancel(notificationId);
+      flutterLocalNotificationsPlugin.cancel(dateToday.day);
     }
   }
 
